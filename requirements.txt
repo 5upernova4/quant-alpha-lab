@@ -1,0 +1,6 @@
+# Multi-Alpha Research Lab -- dependencies
+# Tested on Python 3.12. Versions are lower bounds, not pins.
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11
+matplotlib>=3.8

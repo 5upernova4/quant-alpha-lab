@@ -1,0 +1,22 @@
+# Competition data (Inter-IIT prepathon). Not redistributed; see README.
+data/
+*.pdf
+*.zip
+
+# Generated tables that contain the raw daily price series. Re-created by main.py.
+results/task1_baseline_history.csv
+results/task1_baseline_trades.csv
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS / archive junk
+.DS_Store
+__MACOSX/
+
+# Unrelated media that lived next to the original submission
+submission/

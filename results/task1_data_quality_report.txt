@@ -1,0 +1,20 @@
+DATA QUALITY REPORT
+==============================================================
+Raw price file  : 1000 rows, 14 duplicate dates, 0 null cells
+Raw signal file : 1000 rows, 0 duplicate dates, 51 null cells
+--------------------------------------------------------------
+  - Normalised mixed date formats in the price file (%Y-%m-%d x973, %d-%m-%Y x27).
+  - Removed 14 duplicate price rows (one per repeated date).
+  - Re-sorted rows into chronological order (raw file was shuffled).
+  - Left warm-up NaNs in place (no backward fill) for: BB06 x19, BB07 x13, VB05 x19
+  - 14 dates carry signals but no price row; they are not tradeable, so they are excluded from the trading calendar but retained in the information set.
+--------------------------------------------------------------
+Clean price panel: 986 tradeable dates, OHLC consistency violations: 0
+
+FEATURE / INFORMATION AUDIT
+==============================================================
+  tradeable_dates                 : 986
+  rows_without_prior_signal       : 1
+  mean_information_age_days       : 1.402030456852792
+  lookahead_rows_checked          : 400
+  lookahead_status                : PASS
