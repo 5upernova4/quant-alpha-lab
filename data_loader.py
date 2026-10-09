@@ -1,9 +1,9 @@
 """
-DataLoader -- gets raw files off disk and asserts they are shaped as expected.
+DataLoader -- reads the raw files and checks their shape.
 
-Deliberately dumb. It loads and it checks; it does not repair anything. All
-repair work belongs to DataCleaner, so that the data-quality report has a single
-owner and we can always answer "what exactly was wrong with the raw file?".
+It only loads and checks; it does not fix anything. All fixes happen in
+DataCleaner, so one module owns the data-quality report and we can always say
+what was wrong with the raw file.
 """
 
 import pandas as pd
@@ -23,8 +23,8 @@ class DataLoader:
     def load(self, source=None, signal_source=None):
         """Load both files and return them untouched, as (prices, signals).
 
-        `source` and `signal_source` default to the configured paths so that
-        main.py never has to know where the data lives.
+        `source` and `signal_source` default to the paths in config, so main.py
+        does not need to know where the data lives.
         """
         price_path = source or config.PRICE_DATA_PATH
         signal_path = signal_source or config.SIGNAL_DATA_PATH
@@ -52,8 +52,8 @@ class DataLoader:
     def validate_schema(self, data, kind="price"):
         """Check that the expected columns are present.
 
-        Returns (is_valid, missing_columns) rather than a bare bool, because a
-        silent False tells the operator nothing about what to fix.
+        Returns (is_valid, missing_columns) so the caller can see what is
+        missing, not just that something is.
         """
         required = (
             self.REQUIRED_PRICE_COLUMNS if kind == "price" else self.REQUIRED_SIGNAL_COLUMNS

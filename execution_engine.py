@@ -1,29 +1,26 @@
 """
 ExecutionEngine -- turns target positions into fills, costs and a trade log.
 
-Everything about how an order becomes money happens here and nowhere else. The
-backtester decides *what* position it wants; this module decides what that costs
-and at what price it happens. Keeping the two apart is what lets us re-run every
-strategy under identical execution assumptions, which the problem statement
-requires for the allocation comparison.
+The backtester decides what position it wants; this module decides the fill
+price and the cost. Keeping these apart means every strategy runs under the
+same execution rules, which the allocation comparison needs.
 
 Cost model
 ----------
-The mandated cost is 0.05% of trade notional per side. In return space, if the
-position moves from p_{t-1} to p_t, the notional traded is |p_t - p_{t-1}|
-multiplied by current equity, so the drag on that period's return is simply
+The mandated cost is 0.05% of trade notional per side. If the position moves
+from p_{t-1} to p_t, the notional traded is |p_t - p_{t-1}| times current
+equity, so the cost in return terms is
 
     cost_t = c * |p_t - p_{t-1}|
 
-A full round trip (0 -> 1 -> 0) therefore costs 0.10%, exactly as specified.
+A full round trip (0 -> 1 -> 0) costs 0.10%, as specified.
 
 Slippage
 --------
-Modelled as an additional per-side cost on the same traded notional, defaulting
-to zero. The reasoning is in the report: the problem statement fixes the cost
-assumption and tells us not to substitute a different one, so the headline
-numbers carry the mandated cost alone and slippage is applied only inside the
-cost-sensitivity study, where it is varied rather than assumed.
+An extra per-side cost on the same traded notional, zero by default. The
+problem statement fixes the cost and says not to replace it, so the headline
+numbers use only the mandated cost. Slippage is used only in the
+cost-sensitivity study, where it is varied. See the report.
 """
 
 import numpy as np
@@ -48,8 +45,8 @@ class ExecutionEngine:
     def execute(self, signal, market_data):
         """Simulate execution of a target-position series.
 
-        Returns a frame with, per date: the target position actually held, the
-        traded amount, the cost charged, and the fill price.
+        Returns a frame with, per date: the position held, the traded amount,
+        the cost charged and the fill price.
         """
         positions = pd.Series(np.asarray(signal, dtype=float), index=market_data.index)
         prev = positions.shift(1).fillna(0.0)
@@ -66,9 +63,8 @@ class ExecutionEngine:
                 "fill_price": fill_price.values,
             }
         )
-        # Mandated cost and slippage are charged separately so both can be seen,
-        # then summed. Keeping them apart in the output is what lets the
-        # cost-sensitivity study vary one without disturbing the other.
+        # Mandated cost and slippage are kept in separate columns, then summed,
+        # so the cost-sensitivity study can vary one without the other.
         out["mandated_cost"] = self.apply_transaction_cost(out["traded_notional"])
         out["slippage_cost"] = self.apply_slippage(out["traded_notional"])
         out["cost"] = out["mandated_cost"] + out["slippage_cost"]
@@ -82,8 +78,8 @@ class ExecutionEngine:
     def apply_slippage(self, traded_notional):
         """Apply execution slippage on the same traded notional.
 
-        Kept separate from the mandated cost so that the two can always be
-        reported and stressed independently.
+        Kept separate from the mandated cost so each can be reported and
+        stressed on its own.
         """
         return np.asarray(traded_notional, dtype=float) * (self.slippage_bps / 10_000.0)
 
@@ -97,7 +93,7 @@ class ExecutionEngine:
 
     # ------------------------------------------------------------------
     def _log(self, executions):
-        """Record only the rows where the position actually changed."""
+        """Record only the rows where the position changed."""
         self.trades = []
         changed = executions[executions["traded_notional"] > 1e-12]
         for row in changed.itertuples(index=False):

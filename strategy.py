@@ -1,19 +1,16 @@
 """
 BaseStrategy -- the contract every alpha implements.
 
-The point of this class is replaceability. The backtester, execution engine and
-portfolio know nothing about any particular strategy; they know that a strategy
-turns a decision frame into a position series in [-1, +1]. That is the whole
-interface, and it is why adding alpha_07 later would not require touching a
-single line of engine code.
+The backtester, execution engine and portfolio do not know about any specific
+strategy. They only know that a strategy turns a decision frame into a position
+series in [-1, +1]. So a new alpha can be added without changing engine code.
 
-Two rules are enforced here rather than left to good intentions:
+Two rules are checked here:
 
-1. generate_signal only ever receives the decision frame, which by construction
-   contains no price or volume. A strategy physically cannot look at price.
-2. Whatever a strategy returns is clipped to the configured position bound and
-   NaN-filled to flat, so a half-finished idea degrades to "no position" instead
-   of quietly injecting garbage into the portfolio.
+1. generate_signal only gets the decision frame, which has no price or volume.
+   A strategy cannot look at price.
+2. The output is clipped to the position bound and NaN becomes flat, so a
+   broken signal gives "no position" instead of bad values in the portfolio.
 """
 
 import numpy as np
@@ -29,11 +26,10 @@ class BaseStrategy:
     hypothesis = "Not stated."
     signals_used = []
 
-    # The horizon the hypothesis is about, in trading days. It is declared on the
-    # class -- part of the idea, not a knob turned after seeing results -- and it
-    # is the horizon the forward-return label is built at when the strategy is
-    # fitted. A reversion signal that is about the next fortnight cannot be
-    # calibrated against tomorrow's return and then be said to have failed.
+    # The horizon of the hypothesis, in trading days. It is set on the class as
+    # part of the idea, not tuned after seeing results. The forward-return label
+    # used in fit() is built at this horizon. A signal about the next two weeks
+    # should not be judged on tomorrow's return.
     fit_horizon = 1
 
     def __init__(self, **params):
@@ -47,17 +43,17 @@ class BaseStrategy:
     def generate_features(self, data):
         """Define strategy inputs.
 
-        Default: pass the decision frame through untouched. Strategies that need
-        derived columns (rolling on-rates, composite scores) override this and
-        build them from the signal columns only.
+        Default: return the decision frame as is. Strategies that need derived
+        columns (rolling on-rates, composite scores) override this and build
+        them from the signal columns only.
         """
         return data
 
     def generate_signal(self, data):
         """Generate trading decisions: a target position per row, in [-1, 1].
 
-        Subclasses implement `_signal`. This wrapper does the guarding so that
-        no individual alpha can forget it.
+        Subclasses implement `_signal`. This wrapper runs the checks so each
+        alpha does not have to.
         """
         self._assert_no_price_columns(data)
         features = self.generate_features(data)
@@ -67,19 +63,19 @@ class BaseStrategy:
     def fit(self, data, target=None, daily_target=None):
         """Fit parameters/models where applicable.
 
-        Called with development-window data only. Strategies with no fitted
-        component leave this as a no-op but still flip the flag, so the pipeline
-        can assert that fit() was called before any holdout run.
+        Called with development-window data only. Strategies with nothing to
+        fit still set the flag, so the pipeline can check fit() ran before any
+        holdout run.
 
-        Two labels are supplied, and they do different jobs:
+        Two labels are passed in:
 
-        * `target` is the forward return at the strategy's declared horizon, used
-          to estimate which way each driver points.
-        * `daily_target` is the one-day open-to-open return -- what the strategy
-          actually earns each candle. Any choice about *how long to hold* has to
-          be scored against this one and net of trading cost, because a longer
-          hold changes turnover, and a selection made on a gross multi-day label
-          would systematically prefer whichever setting trades most.
+        * `target` is the forward return at the strategy's horizon, used to
+          estimate which way each driver points.
+        * `daily_target` is the one-day open-to-open return, which is what the
+          strategy earns each candle. Any choice of holding period must be
+          scored on this, net of cost, because hold length changes turnover. A
+          choice made on a gross multi-day label would favour whichever setting
+          trades most.
         """
         self.is_fitted = True
         return self

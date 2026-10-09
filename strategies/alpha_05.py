@@ -3,21 +3,19 @@ Alpha 05 -- Volume-Flow Continuation.
 
 Hypothesis
 ----------
-This is the one strategy in the set that is not contrarian, and it is here on
-purpose.
+This is the only strategy in the set that is not contrarian, by design.
 
-Participation carries information that price alone does not. A move on heavy,
-rising volume is more likely to be an institution working an order over several
-days than a one-off liquidity air pocket; a move on thin volume is more likely
-to be noise that gets retraced. The hypothesis is that volume-confirmed flow
-*continues* at a very short horizon, because large orders take days to complete.
+Volume carries information that price alone does not. A move on heavy, rising
+volume is more likely an institution filling an order over several days than a
+one-off gap in liquidity; a move on thin volume is more likely noise that gets
+reversed. The hypothesis is that volume-backed flow continues over a very short
+horizon, because large orders take days to fill.
 
-Economically this is the opposite side of the trade from Alphas 01-04. Those
-earn a premium for providing liquidity to over-extended moves. This one earns by
-stepping aside from, or joining, the moves that have real size behind them. If
-the hypothesis holds, the strategy should make money in exactly the periods
-where the reversion book struggles -- which is the entire reason for carrying
-it, and the claim the orthogonality analysis has to adjudicate.
+This is the other side of the trade from Alphas 01-04. Those earn a premium
+for providing liquidity to over-extended moves. This one earns by stepping
+aside from, or joining, moves with real size behind them. If the hypothesis
+holds, it should make money when the reversion strategies struggle. That is
+why it is in the set, and the orthogonality analysis tests this.
 
 Signals used
 ------------
@@ -29,15 +27,15 @@ VB05 -- normalised measure of how unusual current participation is.
 
 Trading rule
 ------------
-Weight each volume signal by the direction and confidence the development window
-supports, and hold the weighted consensus. Weak drivers get a zero weight rather
-than a small one.
+Weight each volume signal by the direction and strength found on the
+development window, and hold the weighted average. Weak drivers get zero
+weight, not a small one.
 
 Where it should fail
 --------------------
-Volume spikes that mark capitulation rather than accumulation -- the end of a
-move rather than the middle of one. Those cluster at turning points, so the
-failures should be few, large and concentrated.
+Volume spikes that mark capitulation, not accumulation: the end of a move,
+not the middle. These cluster at turning points, so losses should be few,
+large and bunched together.
 """
 
 import numpy as np
@@ -56,9 +54,8 @@ class Alpha05VolumeFlowContinuation(BaseStrategy):
     signals_used = ["VB01", "VB02", "VB03", "VB04", "VB05"]
     fit_horizon = 1    # Order-working is a next-day effect; if it needs a fortnight it is not flow.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'z_window': [30, 60, 90], 'scale': [0.7, 1.0, 1.5]}
     BOOLEAN_SIGNALS = ["VB01", "VB02", "VB03", "VB04"]
     CONTINUOUS_SIGNALS = ["VB05"]

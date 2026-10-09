@@ -1,19 +1,18 @@
 """
 AlphaResearch -- the Task 2 pipeline, start to finish.
 
-Takes the candidate strategies, puts each through the same battery, and ends with
-a defensible selection. The order of operations is the argument:
+Runs every candidate strategy through the same tests and ends with a
+selection. The steps:
 
     1. Describe.    What does each strategy do, how often, at what cost?
-    2. Test.        Is the performance distinguishable from noise?
-    3. Stress.      Does it survive sub-periods, costs, parameters, noise?
-    4. Decompose.   Are these different alphas, or one alpha wearing six hats?
-    5. Select.      Which survive all four, jointly?
+    2. Test.        Is the performance different from noise?
+    3. Stress.      Does it hold across sub-periods, costs, parameters, noise?
+    4. Decompose.   Are these different alphas, or the same alpha six times?
+    5. Select.      Which pass all four, taken together?
 
-Selection is deliberately mechanical -- a written-down rule applied to the
-development window -- rather than a judgement call made after seeing the holdout.
-That is the whole point: the holdout is scored once, after the set is frozen, and
-if the selection turns out badly the report says so instead of quietly reshuffling.
+Selection uses a fixed written rule on the development window, not a judgement
+made after seeing the holdout. The holdout is scored once, after the set is
+fixed. If the selection does badly, the report says so; the set is not changed.
 """
 
 import numpy as np
@@ -31,19 +30,19 @@ class AlphaResearch:
 
     # The selection rule, written down before the holdout is opened.
     #
-    # Structured as gates then a rank, rather than as one threshold per metric,
-    # because the problem statement asks for the five considerations to be
-    # weighed *jointly*. A strategy with a modest Sharpe but genuinely new
-    # information is worth more to a portfolio than a slightly better one that
-    # duplicates something already held, and a flat threshold cannot express that.
+    # Gates first, then a rank, instead of one threshold per metric, because
+    # the problem statement asks for the five points to be weighed together. A
+    # strategy with a modest Sharpe but new information is worth more to a
+    # portfolio than a slightly better one that copies something already held.
+    # A single threshold per metric cannot capture that.
     #
-    # The three gates are the questions with a right answer:
+    # The three gates are yes/no questions:
     #   G1  does the performance come from timing, or just from holding exposure?
-    #   G2  does it survive the cost it must actually pay?
+    #   G2  does it survive the cost it has to pay?
     #   G3  does it add anything the rest of the book does not already have?
-    # Failing any of those is disqualifying regardless of the headline return.
+    # Failing any gate excludes the strategy, whatever its return.
     #
-    # Everything else is a matter of degree, so it is scored and ranked instead.
+    # The rest are matters of degree, so they are scored and ranked.
     SELECTION_RULE = {
         # gates
         "max_permutation_p": 0.30,
@@ -102,8 +101,8 @@ class AlphaResearch:
     def significance_table(self, split="dev", n_trials=None):
         _, market = self.ctx.slice(split)
         asset_r = market["ret_oo"].fillna(0.0)
-        # Task 3 vets alpha_07 on its own, but it was still the 7th idea tried,
-        # so the deflated Sharpe has to be told that
+        # Task 3 checks alpha_07 on its own, but it was still the 7th idea
+        # tried, so the deflated Sharpe must count it
         n_trials = n_trials or len(self.strategies)
         rows = []
         for key, strat in self.strategies.items():
@@ -213,9 +212,9 @@ class AlphaResearch:
     def select(self, split="dev"):
         """Apply the pre-declared rule and return (selected_keys, scorecard).
 
-        Everything is evaluated on the development window. The scorecard records
-        each gate outcome and every score component, so the report can explain an
-        exclusion rather than assert it.
+        Everything uses the development window. The scorecard records each
+        gate result and each score component, so the report can explain why a
+        strategy was excluded.
         """
         perf = self.tables.get(f"performance_{split}")
         if perf is None:
@@ -249,8 +248,8 @@ class AlphaResearch:
                 "decay_slope": float(rob_i.at[key, "decay_slope"]),
                 "noise_retention": float(rob_i.at[key, "noise_retention_5pct"]),
                 "annual_turnover": turnover,
-                # cheaper-to-run strategies score higher; log because the
-                # difference between 10x and 20x matters more than 80x to 90x
+                # cheaper strategies score higher; log because 10x vs 20x
+                # matters more than 80x vs 90x
                 "turnover_efficiency": float(-np.log(max(turnover, 1.0))),
             }
             row["pass_G1_timing"] = bool(row["permutation_p"] <= rule["max_permutation_p"])
@@ -262,9 +261,9 @@ class AlphaResearch:
 
         sc = pd.DataFrame(rows)
 
-        # Composite score: each component standardised across the candidates, so
-        # the score says "better than the other candidates on this axis" rather
-        # than depending on the units any one metric happens to use.
+        # Composite score: each component is standardised across the
+        # candidates, so the score means "better than the others on this
+        # measure" and does not depend on each metric's units.
         for c in rule["score_components"]:
             v = sc[c].astype(float)
             sd = v.std(ddof=1)

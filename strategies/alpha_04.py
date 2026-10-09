@@ -3,19 +3,17 @@ Alpha 04 -- Band Position Reversion.
 
 Hypothesis
 ----------
-A volatility band is a statement about what counts as a normal move *given
-current conditions*. Where price sits inside that band is therefore a
-volatility-adjusted measure of extension, and unlike a raw distance it
-automatically tightens in calm markets and widens in turbulent ones. The
-hypothesis is that position within the band reverts, and that touches of the
-band edges are more often exhaustion than continuation.
+A volatility band shows what a normal move is under current conditions. So
+where price sits in the band is a volatility-adjusted measure of extension.
+Unlike a raw distance, it tightens in calm markets and widens in volatile
+ones. The hypothesis is that position in the band reverts, and that touches of
+the band edges are more often exhaustion than continuation.
 
-The reason this is not a re-run of Alpha 01: Alpha 01's stretch is measured
-against a *trend* reference and is scale-free in price terms only. Alpha 04's is
-measured against a *volatility* envelope, so the same 1% move produces a large
-reading in a quiet market and a small one in a violent market. In practice that
-means the two disagree hardest exactly when volatility is changing -- which is
-when it matters.
+Why this is not the same as Alpha 01: Alpha 01 measures stretch against a
+trend reference, scaled by price only. Alpha 04 measures it against a
+volatility band, so the same 1% move gives a large reading in a quiet market
+and a small one in a volatile market. The two disagree most when volatility is
+changing.
 
 Signals used
 ------------
@@ -25,15 +23,15 @@ BB02 -- breakout below the lower band.
 
 Trading rule
 ------------
-Core position from band location, flipped to the development-window direction.
-Band breakouts add a discrete overlay in whichever direction the development
-window supports, so the strategy is not forced to assume breakouts fail.
+Core position from band location, with the sign from the development window.
+Band breakouts add an on/off overlay in the direction the development window
+supports, so the strategy does not assume breakouts fail.
 
 Where it should fail
 --------------------
-A genuine volatility expansion, where price rides the upper band for weeks. The
-band widens but position-in-band stays pinned high, and the strategy is short
-throughout.
+A real volatility expansion, where price rides the upper band for weeks. The
+band widens but position in the band stays high, and the strategy is short the
+whole time.
 """
 
 import numpy as np
@@ -52,9 +50,8 @@ class Alpha04BandPositionReversion(BaseStrategy):
     signals_used = ["BB06", "BB01", "BB02"]
     fit_horizon = 10    # Band position normalises over a similar span to the band window itself.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'scale': [0.5, 0.8, 1.2], 'breakout_weight': [0.0, 0.2, 0.4, 0.6]}
 
     def __init__(self, scale=0.8, breakout_weight=0.4, **params):

@@ -1,12 +1,11 @@
 """
 DataCleaner -- turns the raw files into a research-ready panel.
 
-The supplied price file is not clean, and the defects are not accidents: the
-rows are out of chronological order, a handful of dates are written in a
-different format from the rest, some rows appear twice, and some trading dates
-present in the signal file have no price row at all. Each of those breaks a
-backtest in a different way, so each is handled explicitly and counted in the
-data-quality report rather than being silently absorbed by a generic dropna().
+The price file has known defects: rows are out of date order, some dates use
+a different format, some rows appear twice, and some dates in the signal file
+have no price row. Each one breaks a backtest in a different way, so each is
+handled on its own and counted in the data-quality report, instead of a
+generic dropna().
 """
 
 import numpy as np
@@ -18,10 +17,10 @@ import config
 class DataCleaner:
     """Validates, repairs and audits the raw inputs."""
 
-    # The supplied file mixes ISO dates with day-first dates. Parsing with a
-    # single format silently produces NaT; parsing with dayfirst inference
-    # silently mis-reads 2018-01-02 as 2 January vs 1 February depending on the
-    # row. We therefore try the formats we have actually observed, in order.
+    # The file mixes ISO dates with day-first dates. One format gives NaT for
+    # the others; dayfirst inference can read 2018-01-02 as 2 January or
+    # 1 February depending on the row. So we try the formats seen in the file,
+    # in order.
     DATE_FORMATS = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]
 
     def __init__(self):
@@ -60,18 +59,16 @@ class DataCleaner:
     def clean(self, prices, signals):
         """Return (clean_prices, clean_signals), both chronological and unique.
 
-        Order matters. Dates are normalised first, because everything else --
-        sorting, duplicate detection, alignment -- is meaningless while the same
-        calendar day can be spelled two different ways.
+        Order matters. Dates are normalised first, because sorting, duplicate
+        checks and alignment do not work while one day can be written two ways.
         """
         self.report_lines = []
         prices = self._parse_dates(prices, "price")
         signals = self._parse_dates(signals, "signal")
 
-        # Profiled AFTER the dates are normalised. Counting duplicates on the raw
-        # strings undercounts them, because the same calendar day written two
-        # different ways does not compare equal -- and the report would then
-        # disagree with the repair line immediately below it.
+        # Profiled after the dates are normalised. On the raw strings, the same
+        # day written two ways does not match, so duplicates would be
+        # undercounted and the report would not agree with the repair step.
         self.diagnostics = {
             "price_raw": self.validate(prices, "price"),
             "signal_raw": self.validate(signals, "signal"),
@@ -95,15 +92,13 @@ class DataCleaner:
         return prices, signals
 
     # ------------------------------------------------------------------
-    # individual repairs -- each one is also a required interface method
+    # individual repairs (each is also a required interface method)
     # ------------------------------------------------------------------
     def sort_chronologically(self, data):
         """Enforce time order.
 
-        The raw price file arrives shuffled. Every downstream calculation --
-        returns, rolling windows, the t-1 information cutoff -- assumes the row
-        order *is* the time order, so this has to happen before anything else
-        touches the frame.
+        The raw price file is shuffled. Returns, rolling windows and the t-1
+        cutoff all assume row order is time order, so this must run first.
         """
         before = bool(data["date"].is_monotonic_increasing)
         out = data.sort_values("date", kind="mergesort").reset_index(drop=True)
@@ -116,15 +111,14 @@ class DataCleaner:
     def handle_missing(self, data, kind="price"):
         """Handle missing observations.
 
-        Two different situations, handled two different ways:
+        Two cases:
 
         * Leading NaNs in the continuous signals (BB06, BB07, VB05) are warm-up
-          periods -- the indicator simply does not exist yet. Filling them
-          backwards would invent information that did not exist on the day, so
-          they are left as NaN and every strategy treats NaN as "no opinion".
-        * Interior NaNs, if any appear, are forward-filled only. Forward fill
-          uses the last value that was genuinely known at the time; a backward
-          fill would copy tomorrow's value into today and is look-ahead.
+          periods: the indicator does not exist yet. A backward fill would
+          invent data, so they stay NaN and strategies treat NaN as "no view".
+        * Interior NaNs, if any, are forward-filled only. Forward fill uses the
+          last known value; a backward fill would copy tomorrow into today
+          (look-ahead).
         """
         cols = config.OHLCV_COLUMNS if kind == "price" else config.ALL_SIGNALS
         cols = [c for c in cols if c in data.columns]
@@ -159,8 +153,8 @@ class DataCleaner:
                 f"Forward-filled {interior_filled} interior missing values (no backward fill)."
             )
         if kind == "price":
-            # A price row we cannot trade on is worse than a missing row: it
-            # would produce a fabricated fill. Drop it and say so.
+            # A price row we cannot trade on would give a fake fill, so drop it
+            # and report it.
             bad = out[config.OHLCV_COLUMNS[:4]].isna().any(axis=1)
             if bad.any():
                 self.report_lines.append(f"Dropped {int(bad.sum())} price rows with unusable OHLC.")
@@ -170,10 +164,9 @@ class DataCleaner:
     def remove_duplicates(self, data, kind="price"):
         """Handle duplicate observations.
 
-        The price file contains exact repeat rows for a number of dates. Because
-        they are byte-identical we can drop them without choosing a winner; if
-        they had disagreed we would have had to state a rule, so we check that
-        first and shout if the assumption ever stops holding.
+        The price file has exact repeat rows for some dates. Since they are
+        identical we keep the first. We still check whether any repeats
+        disagree, and add a warning to the report if they do.
         """
         out = data.copy()
         dup_dates = out["date"].duplicated(keep=False)
@@ -266,12 +259,10 @@ class DataCleaner:
     def _audit_calendars(self, prices, signals):
         """Compare the two calendars and record the mismatch.
 
-        Some dates carry a signal row but no price row. Those days are not
-        tradeable -- there is no open to fill against -- so the tradeable
-        calendar is the price calendar. The signals on those days are not
-        thrown away: they stay in the information set and are picked up by the
-        as-of alignment in FeatureEngine as the last observation before the
-        next tradeable day.
+        Some dates have a signal row but no price row. They are not tradeable
+        (no open to fill at), so the trading calendar is the price calendar.
+        Their signals are kept: the as-of alignment in FeatureEngine uses them
+        as the last observation before the next trading day.
         """
         p_dates, s_dates = set(prices["date"]), set(signals["date"])
         only_signal = sorted(s_dates - p_dates)

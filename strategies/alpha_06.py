@@ -3,17 +3,15 @@ Alpha 06 -- Volatility-Regime Conditioned Reversion.
 
 Hypothesis
 ----------
-Mean reversion is not a constant. It is compensation for providing liquidity,
-and liquidity is scarcest -- so the compensation is largest -- when volatility is
-high and when a quiet period has just broken. The hypothesis here is not about
-*direction* at all; it is that the volatility state tells you how much of the
-reversion trade to do.
+Mean reversion is not constant. It is payment for providing liquidity, and
+liquidity is scarcest (so the payment is largest) when volatility is high and
+when a quiet period has just ended. This hypothesis is not about direction; it
+says the volatility state tells you how much of the reversion trade to do.
 
-That makes this strategy structurally different from the rest of the set. Alphas
-01, 03 and 04 all answer "which way?". This one takes a deliberately plain
-reversion core and spends its entire information budget on "how much?" -- which
-is a genuinely separate question, and one a portfolio can benefit from even when
-the direction call is shared.
+So this strategy is different from the rest. Alphas 01, 03 and 04 answer
+"which way?". This one uses a simple reversion core and puts all its signal
+into "how much?". That is a separate question, and it can help a portfolio
+even when the direction call is shared.
 
 Signals used
 ------------
@@ -23,17 +21,17 @@ BB06 -- position within the band, used only as the plain directional core.
 
 Trading rule
 ------------
-Direction comes from the band-position core. Size comes from a multiplier built
-from the volatility state: elevated volatility and a recently released squeeze
-both scale the position up, calm conditions scale it down. The multiplier is
-bounded so the strategy cannot lever itself into a corner.
+Direction comes from the band-position core. Size comes from a multiplier
+based on the volatility state: high volatility and a just-released squeeze
+both scale the position up; calm conditions scale it down. The multiplier is
+capped so leverage stays limited.
 
 Where it should fail
 --------------------
-A volatility regime where high volatility is *trending* volatility rather than
-choppy volatility -- a crash. The conditioner then sizes the strategy up exactly
-when the directional core is most wrong. This is the most dangerous failure mode
-in the set and it is examined explicitly against the March 2020 window.
+A regime where high volatility comes with a strong trend, not choppy moves:
+a crash. The multiplier then sizes the strategy up just when the core is most
+wrong. This is the most dangerous failure mode in the set and is checked
+against the March 2020 window.
 """
 
 import numpy as np
@@ -53,9 +51,8 @@ class Alpha06VolatilityRegimeReversion(BaseStrategy):
     fit_horizon = 10    # The band-position core reverts over about a fortnight; the
                         # volatility conditioning is measured on the same window.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'z_window': [30, 60, 90], 'max_mult': [1.2, 1.6, 2.0]}
 
     def __init__(self, z_window=60, min_mult=0.3, max_mult=1.6, **params):
@@ -70,8 +67,8 @@ class Alpha06VolatilityRegimeReversion(BaseStrategy):
         out = pd.DataFrame(index=data.index)
         out["core"] = data["BB06"]
         out["vol_z"] = trailing_z(data["BB07"], self.z_window)
-        # A squeeze that has just ended carries the information, not the squeeze
-        # itself: BB05 on yesterday and off today is a release.
+        # The signal is a squeeze that has just ended, not the squeeze itself:
+        # BB05 on yesterday and off today is a release.
         sq = data["BB05"].fillna(0.0)
         out["squeeze_release"] = ((sq.shift(1) > 0.5) & (sq <= 0.5)).astype(float)
         return out
@@ -83,15 +80,15 @@ class Alpha06VolatilityRegimeReversion(BaseStrategy):
             return self
 
         s, t, rho = direction_and_strength(feats["core"], target, horizon=self.fit_horizon)
-        # If the estimator cannot call a direction, the honest response is to
-        # hold no position -- not to fall back on the sign we expected. A prior
-        # that quietly overrides the data is how a hypothesis becomes unfalsifiable.
+        # If the fit cannot find a direction, hold no position. Do not fall
+        # back on the sign we expected; that would let the prior override the
+        # data.
         self.core_sign_ = s
         self.fitted_["BB06_core"] = {"sign": self.core_sign_, "t_stat": round(t, 3),
                                      "spearman": round(rho, 4)}
 
-        # Does high volatility make the core *more* profitable? Test the
-        # interaction directly rather than assuming the sign.
+        # Does high volatility make the core more profitable? Test the
+        # interaction instead of assuming the sign.
         core = self.core_sign_ * feats["core"]
         y = pd.Series(np.asarray(target, dtype=float), index=data.index)
         base = (core * y)

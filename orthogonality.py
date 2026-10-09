@@ -1,39 +1,35 @@
 """
-OrthogonalityAnalyzer -- are these actually different sources of alpha?
+OrthogonalityAnalyzer -- are these really different sources of alpha?
 
-The problem statement is precise about what it wants here, and it is not a
-correlation matrix. Two strategies can be only mildly correlated pairwise and
-still add nothing to each other once a third is in the book; conversely a pair
-can be highly correlated and still carry a useful residual. The question is about
-the *span* of the return vectors, not about pairs.
+The problem statement asks for more than a correlation matrix. Two strategies
+with low pairwise correlation can still add nothing once a third is in the
+book, and a highly correlated pair can still have a useful residual. So we look
+at the span of the return vectors, not at pairs.
 
-The geometry, plainly
----------------------
-Stack the strategy return streams as columns of a T x N matrix R. Each column is
+The geometry
+------------
+Put the strategy return series as columns of a T x N matrix R. Each column is
 a vector in T-dimensional space. Two strategies that always move together point
-in the same direction, so one of them adds no new direction to the space the
-others already cover. The number of genuinely different directions in R is its
-effective rank, and that is the honest count of how many distinct alphas we have,
-regardless of how many files are in strategies/.
+the same way, so one adds no new direction. The number of different directions
+in R is its effective rank: the real count of distinct alphas, however many
+files are in strategies/.
 
 Method
 ------
-QR decomposition with column pivoting. At each step it picks the remaining column
-with the largest component orthogonal to everything already selected -- that is,
-the one carrying the most information the book does not yet have -- and records
-how much of that column was genuinely new. The pivot order is therefore a
-ranking by incremental contribution, computed jointly rather than pairwise, and
-the diagonal of R gives the size of each new direction directly.
+QR decomposition with column pivoting. At each step it picks the remaining
+column with the largest part orthogonal to those already picked (the most new
+information) and records how much of that column was new. So the pivot order
+ranks strategies by added contribution, computed jointly, not pairwise. The
+diagonal of R gives the size of each new direction.
 
-Three cautions are built into the reporting:
+Three cautions in the reporting:
 
-* A direction that is mathematically new can still be economically the same
-  trade. Linear independence is necessary evidence, not sufficient, and the
-  report says so.
-* Rank is computed against a tolerance, and near-degenerate directions are
-  flagged rather than silently counted.
-* Stability through time is checked by re-running the decomposition on rolling
-  windows. A basis that reshuffles every quarter is not a basis.
+* A direction that is new in the maths can still be the same trade
+  economically. Linear independence is needed but not enough; the report
+  says so.
+* Rank uses a tolerance, and near-zero directions are flagged, not counted.
+* Stability is checked by re-running the decomposition on rolling windows. A
+  basis that changes every quarter is not reliable.
 """
 
 import numpy as np
@@ -58,9 +54,9 @@ class OrthogonalityAnalyzer:
     def matrix(self):
         """Mean-centred return matrix.
 
-        Centring matters: without it the first direction found is dominated by
-        whichever strategies simply have the largest average return, which is a
-        statement about profitability rather than about shared behaviour.
+        Without centring, the first direction would be driven by the
+        strategies with the largest average return. That measures profit, not
+        shared behaviour.
         """
         M = self.R.to_numpy(dtype=float)
         return M - M.mean(axis=0, keepdims=True)
@@ -72,13 +68,13 @@ class OrthogonalityAnalyzer:
         return c
 
     def effective_dimensionality(self):
-        """How many distinct directions does the return space actually have?
+        """How many distinct directions does the return space have?
 
-        Three complementary readings, because any single one can mislead:
+        Three measures, since any one alone can mislead:
         * numerical rank at a tolerance;
         * the number of principal components needed for 95% of the variance;
         * the participation ratio, a smooth 'effective number of independent
-          streams' that does not depend on an arbitrary cutoff.
+          streams' with no cutoff.
         """
         M = self.matrix
         if M.shape[0] < 2 or M.shape[1] < 1:
@@ -109,9 +105,9 @@ class OrthogonalityAnalyzer:
     def pivoted_qr(self):
         """QR with column pivoting -- the ranking by incremental contribution.
 
-        Returns a frame ordered by selection: the first row is the strategy that
-        spans the most on its own, each subsequent row is the strategy adding the
-        most that the ones above it do not already contain.
+        Returns a frame in pick order: the first row is the strategy that spans
+        the most on its own; each next row is the strategy that adds the most
+        beyond the ones above it.
         """
         M = self.matrix
         Q, Rm, piv = qr(M, mode="economic", pivoting=True)
@@ -127,12 +123,10 @@ class OrthogonalityAnalyzer:
                 "strategy": name,
                 "incremental_norm": float(d),
                 "own_norm": float(norm),
-                # Share of this strategy's own VARIANCE that was not already
-                # available from the strategies picked before it. Norms are
-                # squared first so this is on the same footing as the R-squared
-                # reported by the Gram-Schmidt table -- comparing a norm ratio
-                # with a variance ratio in the same report would make two
-                # correct numbers look like a contradiction.
+                # Share of this strategy's own variance not already explained
+                # by the strategies picked before it. Norms are squared so this
+                # is on the same scale as the R-squared in the Gram-Schmidt
+                # table; otherwise the two tables would seem to disagree.
                 "independent_fraction": float((d / norm) ** 2) if norm > 0 else 0.0,
                 "explained_by_earlier": float(1.0 - (d / norm) ** 2) if norm > 0 else 1.0,
                 "relative_to_first": float(d / diag[0]) if diag[0] > 0 else 0.0,
@@ -144,11 +138,11 @@ class OrthogonalityAnalyzer:
     def gram_schmidt_residuals(self, order=None):
         """Sequentially orthogonalise and report each residual stream.
 
-        Complements the pivoted QR: here *we* choose the order (for example, by
-        conviction or by standalone Sharpe) and read off what is left of each
-        strategy once the ones before it have been removed. The residual series
-        themselves are returned, so their Sharpe can be measured -- a strategy
-        whose residual still earns is genuinely additive.
+        Unlike the pivoted QR, here we choose the order (for example by
+        standalone Sharpe) and see what is left of each strategy after removing
+        the ones before it. The residual series are returned so their Sharpe
+        can be measured. A strategy whose residual still earns adds something
+        new.
         """
         names = order or self.names
         M = self.R[names].to_numpy(dtype=float)
@@ -178,10 +172,10 @@ class OrthogonalityAnalyzer:
     def incremental_contribution(self, ppy=None):
         """What each strategy still earns after projecting out the others.
 
-        For each strategy, regress its returns on *all* the others and keep the
-        residual. If the residual still has a positive mean, the strategy is
-        carrying return the rest of the book cannot replicate -- which is a
-        stronger claim than low correlation.
+        For each strategy, regress its returns on all the others and keep the
+        residual. If the residual still has a positive mean, the strategy earns
+        return the rest of the book cannot copy. This is stronger than low
+        correlation.
         """
         ppy = ppy or config.TRADING_DAYS_PER_YEAR
         rows = []
@@ -195,12 +189,11 @@ class OrthogonalityAnalyzer:
             beta, *_ = np.linalg.lstsq(X, y, rcond=None)
             eps = y - X @ beta
 
-            # The tradeable residual stream is the intercept plus the noise, not
-            # the noise alone. An OLS residual with a fitted intercept has mean
-            # exactly zero by construction, so scoring `eps` would report a
-            # residual Sharpe of zero for every strategy no matter how additive
-            # it is. What a desk would actually hold is this strategy hedged with
-            # the others -- and that position earns the intercept.
+            # The tradeable residual is the intercept plus the noise. An OLS
+            # residual with an intercept always has mean zero, so scoring `eps`
+            # alone would give a residual Sharpe of zero for every strategy. The
+            # real position is this strategy hedged with the others, and that
+            # earns the intercept.
             hedged = beta[0] + eps
             sd = hedged.std(ddof=1)
             ss_tot = float(((y - y.mean()) ** 2).sum())
@@ -219,8 +212,8 @@ class OrthogonalityAnalyzer:
         """Does the basis hold still, or does it reshuffle every quarter?
 
         Re-runs the pivoted QR on rolling windows and records which strategy is
-        picked first and how the pivot order moves. A set of directions that is
-        genuinely structural keeps roughly the same ordering.
+        picked first and how the pivot order changes. A stable set of
+        directions keeps roughly the same order.
         """
         rows = []
         n = len(self.R)

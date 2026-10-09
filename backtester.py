@@ -1,27 +1,25 @@
 """
 Backtester -- the simulation loop.
 
-Holds no opinion about markets. It takes a strategy, asks it for positions,
-hands those to the execution engine, hands the fills to the portfolio, and asks
-the performance analyser to describe the result. Swapping in a different alpha
-changes nothing in this file, which is the point.
+It has no market logic. It gets positions from a strategy, passes them to the
+execution engine, passes the fills to the portfolio, and asks the performance
+analyser for metrics. A new alpha needs no change to this file.
 
-Timing, stated once and enforced here
+Timing (checked here)
 -------------------------------------
     for each candle t:
         inputs_t   = signal rows up to and including t-1
         decision_t = strategy.generate_signal(inputs_t)
         fill        at open[t]
 
-generate_signals() is what enforces the t-1 cutoff: it only ever passes the
-decision frame, which FeatureEngine built with a strict backward as-of join.
-execute_signals() fills at the open and nowhere else.
+generate_signals() applies the t-1 cutoff: it only passes the decision frame,
+which FeatureEngine built with a strict backward as-of join.
+execute_signals() fills at the open only.
 
-A note on the vectorised implementation. The loop above is written as array
-operations for speed, which is safe *only* because the cutoff is baked into the
-frame rather than into the loop index. To prove that the fast path and the
-literal per-candle loop agree, run_reference_loop() implements the slow version
-and assert_matches_reference() checks the two produce identical equity curves.
+The loop above is written as array operations for speed. This is safe only
+because the cutoff is built into the frame, not the loop index. To check this,
+run_reference_loop() runs the slow per-candle loop and
+assert_matches_reference() checks both give the same equity curve.
 """
 
 import numpy as np
@@ -69,9 +67,9 @@ class Backtester:
     def generate_signals(self, data, strategy):
         """Generate strategy decisions under the t-1 information cutoff.
 
-        The cutoff is already expressed in `data`: row t holds the signal values
-        observed strictly before date t. We re-assert that here so a
-        hand-constructed frame can never sneak past.
+        The cutoff is already in `data`: row t holds signal values observed
+        strictly before date t. We check it again here in case a frame was
+        built by hand.
         """
         if "information_asof" in data.columns:
             stale = data["information_asof"] >= data["date"]
@@ -87,13 +85,11 @@ class Backtester:
     def execute_signals(self, signals, data):
         """Simulate signal execution -- fills at candle t's open.
 
-        One terminal condition is applied here, and it has to be applied before
-        costs are charged rather than after. The final candle has no following
-        open, so a position taken on it can never be held or exited inside the
-        sample. We therefore force the last target flat, which makes the engine
-        charge the exit cost on that candle -- the same thing a desk would pay to
-        close the book on the last day. Zeroing the position after the cost had
-        already been computed would hand the strategy a free exit.
+        The last candle has no next open, so a position on it cannot be held
+        or exited in the sample. We set the last target flat before costs are
+        charged, so the engine charges the exit cost on that candle (like
+        closing the book on the last day). Setting it flat after costs would
+        give a free exit.
         """
         targets = pd.Series(np.asarray(signals, dtype=float), index=data.index).copy()
         if len(targets):
@@ -134,7 +130,7 @@ class Backtester:
     def run_reference_loop(self, data, strategy, market_data):
         """The literal per-candle loop from the Technical Documentation.
 
-        Slow and obviously correct. Used to prove the vectorised path agrees.
+        Slow but easy to check. Used to confirm the vectorised path matches.
         """
         inputs = data.drop(columns=["information_asof"], errors="ignore")
         positions = strategy.generate_signal(inputs).to_numpy()

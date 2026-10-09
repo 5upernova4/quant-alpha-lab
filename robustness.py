@@ -1,27 +1,25 @@
 """
-RobustnessTester -- does the edge survive contact with reality?
+RobustnessTester -- does the edge hold under changed conditions?
 
-Significance testing asks whether an effect is distinguishable from noise on the
-sample we have. Robustness asks a harder and more useful question: would we still
-have found it if the sample, the costs, or the parameters had been slightly
-different? A strategy that only works at one cost level, in one year, at one
-parameter setting is not a strategy -- it is a coincidence with good manners.
+Significance tests ask whether an effect differs from noise on this sample.
+Robustness asks whether we would still find it if the sample, costs or
+parameters were a bit different. A strategy that only works at one cost level,
+in one year, at one parameter setting is likely a coincidence.
 
-Five dimensions are tested, each aimed at a specific way a backtest lies:
+Five checks, each for a specific way a backtest can mislead:
 
-1. Sub-period stability -- splits the record by calendar year and by regime. The
-   failure it catches: an edge that is really one good quarter.
-2. Cost and slippage sensitivity -- re-runs the whole backtest at escalating
-   costs and reports the break-even level. The failure it catches: a signal that
-   is real but too expensive to harvest.
-3. Parameter sensitivity -- perturbs each parameter across a grid and reports the
-   *shape* of the surface, not just its peak. The failure it catches: a result
-   balanced on a knife edge, which is the signature of a curve fit.
-4. Signal-noise robustness -- randomly flips or jitters a fraction of the signal
-   inputs. The failure it catches: over-reliance on a handful of exact readings.
-5. Failure analysis -- isolates the worst drawdowns and asks whether the losses
-   share a common cause. The failure it catches: a systematic exposure the
-   researcher has mistaken for bad luck.
+1. Sub-period stability -- splits results by calendar year and by regime.
+   Catches: an edge that is really one good quarter.
+2. Cost and slippage sensitivity -- re-runs the backtest at higher costs and
+   reports the break-even level. Catches: a real signal that costs too much to
+   trade.
+3. Parameter sensitivity -- moves each parameter across a grid and reports the
+   shape of the results, not just the best point. Catches: a result that only
+   works at one exact setting (a curve fit).
+4. Signal-noise robustness -- randomly flips or jitters some signal inputs.
+   Catches: depending on a few exact readings.
+5. Failure analysis -- looks at the worst drawdowns and checks whether the
+   losses share a cause. Catches: a systematic exposure mistaken for bad luck.
 """
 
 import numpy as np
@@ -57,12 +55,11 @@ class RobustnessTester:
     def decay_analysis(self, strategy, n_chunks=6):
         """Is the edge fading *within* the development window?
 
-        Splits the window into equal chunks, measures Sharpe in each, and fits a
-        straight line through them. A strongly negative slope means the effect
-        was already dying while we were still looking at it -- which is the
-        cheapest available warning that it will not survive the holdout, and it
-        costs nothing to check. A strategy can pass every "is it positive?" test
-        and still fail this one.
+        Splits the window into equal chunks, measures Sharpe in each, and fits
+        a straight line. A strongly negative slope means the effect was already
+        fading during development, which is an early warning that it may fail
+        on the holdout. A strategy can pass every "is it positive?" test and
+        still fail this one.
         """
         res = self._run(strategy)
         r = res["returns"]
@@ -119,9 +116,8 @@ class RobustnessTester:
     def regime_analysis(self, strategy, vol_window=21):
         """Split by realised-volatility tercile and by market direction.
 
-        Realised volatility is computed from price, which is legitimate here:
-        this is post-hoc *analysis* of where a strategy worked, not an input to
-        any trading decision.
+        Realised volatility uses price. That is fine here: this is analysis
+        after the fact of where a strategy worked, not an input to any trade.
         """
         res = self._run(strategy)
         r, pos = res["returns"], res["positions"]
@@ -187,9 +183,8 @@ class RobustnessTester:
             hi = neg_rows[neg_rows["cost_per_side_bps"] > lo]["cost_per_side_bps"]
             breakeven = float((lo + hi.min()) / 2) if len(hi) else float(lo)
         elif len(pos_rows) and not len(neg_rows):
-            # Still profitable at the highest cost tested. Reporting that number
-            # as "the break-even cost" would be a ceiling artefact, so it is
-            # flagged as a lower bound instead.
+            # Still profitable at the highest cost tested, so this number is
+            # only a lower bound on the break-even cost. Flag it as such.
             breakeven = float(priced["cost_per_side_bps"].max())
             out.attrs["breakeven_is_lower_bound"] = True
         out.attrs["breakeven_cost_bps"] = breakeven
@@ -201,20 +196,17 @@ class RobustnessTester:
                               fit_data=None, refit=True):
         """Sweep parameters and report the full surface, peak and dispersion.
 
-        The dispersion matters more than the peak. A stable strategy sits on a
-        broad plateau where neighbouring settings all work; an overfit one sits
-        on a spike, and reporting only the spike is how a curve fit gets
-        presented as a discovery.
+        The spread matters more than the peak. A stable strategy sits on a
+        broad plateau where nearby settings all work; an overfit one sits on a
+        spike. Reporting only the spike hides a curve fit.
 
-        Two details make this an honest test rather than a decorative one:
+        Two details:
 
         * The strategy is refitted at each grid point, so a parameter that
-          changes how features are built genuinely changes the fitted directions
-          rather than being silently overwritten.
-        * A parameter that the strategy's own fit() re-chooses (Alpha 02's
-          holding period, for instance) is pinned for the sweep, because
-          otherwise every grid point converges to the same answer and the sweep
-          reports a flat surface that means nothing.
+          changes how features are built also changes the fitted directions.
+        * A parameter that the strategy's own fit() re-chooses (for example
+          Alpha 02's holding period) is pinned for the sweep. Otherwise every
+          grid point ends at the same value and the surface looks flat.
         """
         from itertools import product
 
@@ -256,9 +248,9 @@ class RobustnessTester:
     def signal_noise_robustness(self, strategy, flip_rates=(0.01, 0.05, 0.10), n_draws=20):
         """Corrupt a fraction of the signal inputs and re-measure.
 
-        Boolean flags get flipped; continuous signals get Gaussian jitter scaled
-        to their own standard deviation. A strategy leaning on a handful of exact
-        readings degrades sharply; a robust one degrades smoothly.
+        Boolean flags are flipped; continuous signals get Gaussian noise scaled
+        to their own standard deviation. A strategy that depends on a few exact
+        readings gets much worse; a robust one gets worse slowly.
         """
         rng = np.random.default_rng(self.seed)
         baseline = self._run(strategy)["metrics"]["sharpe"]
@@ -276,9 +268,9 @@ class RobustnessTester:
                         sd = col.std(ddof=1)
                         d.loc[mask, c] = col[mask] + rng.normal(0, sd if sd > 0 else 1.0, mask.sum())
                 draws.append(self._run(strategy, decision=d)["metrics"]["sharpe"])
-            # Retention only means anything when the clean strategy made money.
-            # Dividing by a negative baseline turns "got worse" into a number
-            # above 1, which reads as robustness.
+            # Retention only makes sense when the clean strategy made money.
+            # With a negative baseline, "got worse" would show as a number
+            # above 1 and look like robustness.
             retention = (float(np.mean(draws) / baseline) if baseline > 1e-9 else np.nan)
             rows.append({"flip_rate": rate, "sharpe_mean": float(np.mean(draws)),
                          "sharpe_std": float(np.std(draws, ddof=1)),

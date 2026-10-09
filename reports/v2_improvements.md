@@ -285,7 +285,7 @@ tuning on the holdout. With no fresh data left, it stays an untested idea.
 - The project's principle holds: a validated small result beats an
   unvalidated large one. v1's holdout Sharpe of 1.59 is the number I can
   stand behind. v2's dev Sharpe of 1.86 is not.
-- The honest route to "more return" here is risk, not cleverness: scale the
+- The way to get more return here is to take more risk: scale the
   book. At a 10% vol target v1 made 14.4%/yr on dev and 6.6%/yr on the
   holdout, with drawdowns roughly 30% larger.
 

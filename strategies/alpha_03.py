@@ -3,19 +3,17 @@ Alpha 03 -- Trend-State Fade.
 
 Hypothesis
 ----------
-The price-based state flags describe where the trend *has been*, not where it is
-going. In an instrument whose short-horizon returns mean-revert, a cluster of
-trend flags reading "up" is a description of a move that has already been paid
-for. The hypothesis is that the *agreement* of those flags is itself a
-contrarian variable: the more of them that point the same way, the more crowded
-the position and the weaker the forward return.
+The price-based state flags show where the trend has been, not where it is
+going. When short-term returns mean-revert, many trend flags reading "up"
+describe a move that is already priced in. The hypothesis is that agreement
+among the flags is a contrarian signal: the more of them point the same way,
+the more crowded the trade and the weaker the forward return.
 
-This differs from Alpha 01 in what it reads. Alpha 01 measures *how far* price
-has travelled from a reference, using continuous distance. Alpha 03 measures
-*how many independent trend definitions currently agree*, using discrete state.
-A market can be strongly stretched with only one flag on, or barely stretched
-with every flag on -- the two are not the same statement, and they turn over at
-very different speeds.
+This differs from Alpha 01 in what it reads. Alpha 01 measures how far price
+has moved from a reference (continuous distance). Alpha 03 counts how many
+separate trend definitions agree (discrete state). A market can be very
+stretched with one flag on, or barely stretched with every flag on. These are
+different signals, and they change at very different speeds.
 
 Signals used
 ------------
@@ -25,18 +23,16 @@ PB05 -- sign of recent short-horizon momentum.
 
 Trading rule
 ------------
-Build a consensus score as the signed average of the flags, each flipped to the
-direction the development window supports, then hold a position proportional to
-the consensus. Because state flags are persistent, positions are persistent and
-turnover is low -- which is the practical reason to carry this alpha alongside
-the faster ones.
+Build a consensus score as the signed average of the flags, each with the
+sign the development window supports, and hold a position in proportion to it.
+State flags change slowly, so positions change slowly and turnover is low.
+That is the practical reason to hold this alpha next to the faster ones.
 
 Where it should fail
 --------------------
-A long, orderly trend where every flag stays on for months. The strategy is then
-short the whole way up. This is the mirror image of Alpha 01's failure mode, and
-whether the two fail *together* is exactly what the orthogonality analysis has
-to answer.
+A long, steady trend where every flag stays on for months. The strategy is
+then short the whole way up. This is like Alpha 01's failure mode, and the
+orthogonality analysis checks whether the two fail together.
 """
 
 import numpy as np
@@ -55,15 +51,14 @@ class Alpha03TrendStateFade(BaseStrategy):
     signals_used = ["PB01", "PB02", "PB03", "PB04", "PB05"]
     fit_horizon = 10    # Trend-state flags are persistent; the crowding they describe unwinds slowly.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'min_abs_t': [0.5, 0.75, 1.0, 1.5, 2.0]}
 
     def __init__(self, min_abs_t=None, **params):
-        # Defaults to the shared screening floor rather than carrying its own,
-        # so that all six strategies are screened on identical terms. The
-        # parameter stays exposed because the robustness sweep varies it.
+        # Defaults to the shared screening floor, so all six strategies are
+        # screened the same way. It is still a parameter because the
+        # robustness sweep varies it.
         self.min_abs_t = MIN_ABS_T if min_abs_t is None else min_abs_t
         super().__init__(min_abs_t=self.min_abs_t, **params)
         self.signs_ = {}
@@ -90,8 +85,8 @@ class Alpha03TrendStateFade(BaseStrategy):
         for c in self.signals_used:
             s = self.signs_.get(c, 0.0)
             if s != 0.0:
-                # centre each flag so that "off" is -1 and "on" is +1: a flag that
-                # is on 80% of the time otherwise builds a permanent long bias.
+                # centre each flag so "off" is -1 and "on" is +1; otherwise a flag
+                # that is on 80% of the time gives a constant long bias.
                 centred = 2.0 * features[c].fillna(0.5) - 1.0
                 parts.append(s * centred)
         if not parts:

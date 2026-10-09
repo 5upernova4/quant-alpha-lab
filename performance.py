@@ -1,32 +1,27 @@
 """
-PerformanceAnalyzer -- every number that describes a return stream.
+PerformanceAnalyzer -- all metrics for a return series.
 
-One class computes every metric for every strategy, every baseline and every
-allocation method, so that a comparison can never be an artefact of two
-different people annualising two different ways.
+One class computes the metrics for every strategy, baseline and allocation
+method, so all comparisons use the same formulas.
 
-What each metric is actually for
---------------------------------
-* Total / annualized return -- how much was made. On its own it says nothing
-  about whether the ride was survivable.
-* Volatility -- the usual risk proxy. Penalises upside and downside equally,
-  which is why it is never used alone here.
-* Sharpe -- return per unit of volatility. The default currency of comparison,
-  but it punishes a strategy for making money quickly.
-* Sortino -- return per unit of *downside* deviation. The honest version of
-  Sharpe for anything with asymmetric returns, which mean-reversion strategies
-  usually have.
-* Max drawdown -- the worst peak-to-trough loss. This is the number that
-  decides whether a strategy survives contact with a real risk committee.
-* Drawdown duration -- how long the worst one lasted. A 15% drawdown that
-  recovers in a month and one that takes two years are not the same product.
-* Calmar -- annualized return divided by max drawdown. Return per unit of worst
-  pain, rather than per unit of average wobble.
-* Turnover and cost drag -- what the strategy pays to exist. A signal with a
-  good Sharpe before costs and a negative one after costs is not an alpha.
-* Hit rate, profit factor, tail stats -- how the returns are shaped, which is
-  what tells you whether a good mean is coming from many small wins or one
-  lucky fortnight.
+What each metric is for
+-----------------------
+* Total / annualized return -- how much was made. Says nothing about risk.
+* Volatility -- the usual risk measure. Treats up and down moves the same, so
+  it is not used alone.
+* Sharpe -- return per unit of volatility. The main comparison metric, but it
+  also penalises large gains.
+* Sortino -- return per unit of downside deviation. Better than Sharpe for
+  uneven returns, which mean-reversion strategies often have.
+* Max drawdown -- the worst peak-to-trough loss. The main risk limit in
+  practice.
+* Drawdown duration -- how long the worst drawdown lasted. A 15% drawdown that
+  recovers in a month is different from one that takes two years.
+* Calmar -- annualized return divided by max drawdown.
+* Turnover and cost drag -- what the strategy pays to trade. A signal that is
+  good before costs and negative after costs is not an alpha.
+* Hit rate, profit factor, tail stats -- the shape of the returns: whether a
+  good mean comes from many small wins or a few big days.
 """
 
 import numpy as np
@@ -71,9 +66,9 @@ class PerformanceAnalyzer:
     def annualized_return(self, returns):
         """Geometric (CAGR-style) annualisation, not the arithmetic mean.
 
-        Compounding matters: a series that gains 50% then loses 50% has a
-        positive arithmetic mean and a negative geometric one. The geometric
-        figure is the one an investor actually experiences.
+        A series that gains 50% then loses 50% has a positive arithmetic mean
+        but a negative geometric one. The geometric figure is what an investor
+        gets.
         """
         r = self._clean(returns)
         if len(r) < 2:
@@ -99,9 +94,9 @@ class PerformanceAnalyzer:
     def sortino_ratio(self, returns, target=0.0):
         """Return per unit of downside deviation.
 
-        Downside deviation is computed against the full sample length, not only
-        the losing days. Dividing by the count of losing days alone would make a
-        strategy look better simply for having few of them, which is backwards.
+        Downside deviation divides by the full sample length, not only the
+        number of losing days. Dividing by losing days only would make a
+        strategy with few losing days look better than it is.
         """
         e = self._excess(returns)
         if len(e) < 2:
@@ -159,10 +154,9 @@ class PerformanceAnalyzer:
         if returns is not None:
             r = self._clean(returns)
             wins, losses = r[r > 0], r[r < 0]
-            # Two hit rates, because one of them lies about event strategies. A
-            # strategy that is flat four days in five scores a terrible
-            # unconditional hit rate purely for sitting on its hands; the
-            # conditional figure asks only about the days it actually had risk on.
+            # Two hit rates. A strategy that is flat four days in five gets a low
+            # hit rate over all days just from being flat. The second hit rate
+            # only counts days with a position.
             stats["hit_rate"] = float((r > 0).mean()) if len(r) else 0.0
             if positions is not None and len(positions) >= len(r):
                 active = pd.Series(positions, dtype=float).fillna(0.0).abs().to_numpy()[: len(r)] > 1e-12

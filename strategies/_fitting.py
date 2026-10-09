@@ -1,38 +1,34 @@
 """
 Shared fitting helpers for the alpha strategies.
 
-Every alpha needs the same small piece of machinery: given a candidate driver
-built from the signal library and a forward-return label, decide which way round
-the relationship goes and how much confidence to place in it. Writing that once
-means the six strategies differ in their *hypothesis*, not in their statistical
-plumbing -- which is exactly the distinction Task 2 asks us to defend.
+Every alpha needs the same step: given a driver built from the signal library
+and a forward-return label, find which way the relationship goes and how
+strong it is. Writing this once means the six strategies differ in their
+hypothesis, not in their statistics code, which is what Task 2 asks for.
 
-Two disciplines are baked in:
+Two rules:
 
-* The direction is estimated, never hard-coded. Nothing in these files says
-  "PB01 is contrarian"; the fit reads it off the development window.
-* A weak estimate becomes a zero weight, not a small one. A t-statistic below
-  the configured floor means we could not tell the relationship from noise, and
-  the honest response is to not trade it rather than to trade it small.
+* The direction is estimated, never hard-coded. Nothing here says "PB01 is
+  contrarian"; the fit reads it from the development window.
+* A weak estimate gets zero weight, not a small one. A t-statistic below the
+  floor means we cannot tell the relationship from noise, so we do not trade
+  it at all.
 """
 
 import numpy as np
 import pandas as pd
 
-# This is a SCREENING floor, not a significance threshold, and the distinction
-# matters because of how small the effective sample is. A 10-day forward return
-# measured daily over a 770-day window contains roughly 77 independent
-# observations, and the t-statistics below are already divided by sqrt(horizon)
-# to reflect that. Demanding |t| >= 2 on 77 effective points would discard
-# drivers whose sign is stable across every sub-period and economically
-# motivated, purely because the window is short -- which is a worse error than
-# admitting a weak one, because the strategy-level gates catch the weak ones
-# anyway.
+# This is a screening floor, not a significance threshold, because the
+# effective sample is small. A 10-day forward return measured daily over a
+# 770-day window has about 77 independent observations, and the t-stats below
+# are already divided by sqrt(horizon) for this. Requiring |t| >= 2 on 77
+# points would drop drivers whose sign is stable in every sub-period and makes
+# economic sense, just because the window is short. That is worse than letting
+# a weak one through, since the strategy-level gates catch weak ones anyway.
 #
-# The real significance test happens later and on firmer ground: the block
-# permutation test and the Newey-West t on the backtest's 770 daily returns, in
-# AlphaResearch.SELECTION_RULE. Nothing is selected on the strength of this
-# screen alone.
+# The real significance test comes later: the block permutation test and the
+# Newey-West t on the backtest's 770 daily returns, in
+# AlphaResearch.SELECTION_RULE. Nothing is selected on this screen alone.
 MIN_ABS_T = 0.5     # overlap-corrected; a screen, not a significance claim
 MIN_OBS = 60        # below this there is not enough development history to fit
 
@@ -40,11 +36,10 @@ MIN_OBS = 60        # below this there is not enough development history to fit
 def overlap_correction(horizon):
     """Shrink a t-statistic computed on overlapping forward windows.
 
-    A 10-day forward return measured every day reuses nine days of every
-    observation, so consecutive rows are nowhere near independent. Treating them
-    as independent inflates the t-statistic by roughly sqrt(h). Dividing by
-    sqrt(h) is the standard first-order correction, and it is what makes the
-    significance floor an actual floor rather than decoration.
+    A 10-day forward return measured every day shares nine days with the
+    next row, so rows are far from independent. Treating them as independent
+    inflates the t-statistic by about sqrt(h). Dividing by sqrt(h) is the
+    standard first-order correction.
     """
     return np.sqrt(max(1.0, float(horizon)))
 
@@ -55,9 +50,9 @@ def direction_and_strength(driver, target, min_abs_t=MIN_ABS_T, horizon=1):
     Returns (sign, t_stat, correlation). `sign` is +1, -1 or 0, where 0 means
     "not distinguishable from noise on this window".
 
-    Uses Spearman rank correlation rather than Pearson so that a handful of
-    large return days cannot set the sign on their own. The reported t-statistic
-    is already corrected for the overlap implied by `horizon`.
+    Uses Spearman rank correlation instead of Pearson so a few large return
+    days cannot set the sign alone. The t-statistic is already corrected for
+    the overlap from `horizon`.
     """
     d = pd.Series(driver, dtype=float)
     y = pd.Series(np.asarray(target, dtype=float), index=d.index)
@@ -101,15 +96,14 @@ def event_response(flag, target, min_abs_t=MIN_ABS_T, horizon=1):
 def squash(score, scale=1.0):
     """Map an unbounded score into (-1, 1) without a hard clip.
 
-    tanh is used rather than a clip so that the position responds smoothly to
-    signal strength and an extreme reading does not produce the same trade as a
-    merely strong one.
+    tanh instead of a clip, so the position changes smoothly with signal
+    strength and an extreme reading gives a bigger trade than a strong one.
     """
     return np.tanh(np.asarray(score, dtype=float) / max(scale, 1e-9))
 
 
 def trailing_z(series, window, min_periods=None):
-    """Trailing z-score. Backward-looking only -- never sees its own future."""
+    """Trailing z-score. Uses past values only."""
     s = pd.Series(series, dtype=float)
     mp = min_periods or max(20, window // 2)
     mu = s.rolling(window, min_periods=mp).mean()

@@ -1,16 +1,15 @@
 """
 Portfolio -- position, cash and P&L accounting.
 
-Deliberately thin, and deliberately the only place equity is computed. The
-compounding convention is stated once, here, and every strategy and every
-allocation method in the project inherits it, which is what makes the Task 3
-comparison fair.
+A small module, and the only place equity is computed. The compounding rule
+is set once here and every strategy and allocation method uses it, so the
+Task 3 comparison is fair.
 
 Convention
 ----------
-Positions are expressed as a fraction of current equity, not a share count. For
-a single instrument traded from a single account that is the natural
-representation: a position of +1 means fully long, -0.5 means half short.
+Positions are a fraction of current equity, not a share count. With one
+instrument and one account this is the simplest form: +1 means fully long,
+-0.5 means half short.
 
 The period return for candle t is
 
@@ -18,10 +17,9 @@ The period return for candle t is
 
 and equity compounds as equity_t = equity_{t-1} * (1 + net_t).
 
-`net_t` is earned over the interval [open_t, open_{t+1}], and the series is
-indexed by t, the candle whose open opened the position. The final candle has no
-open[t+1], so it cannot be held; the position is forced flat there and charged
-its exit cost.
+`net_t` is earned over [open_t, open_{t+1}] and is indexed by t, the candle
+where the position was opened. The last candle has no open[t+1], so it cannot
+be held: the position is set flat there and charged its exit cost.
 """
 
 import numpy as np
@@ -48,8 +46,8 @@ class Portfolio:
     def update(self, executions, market_data=None):
         """Update portfolio state from an execution frame.
 
-        `executions` comes from ExecutionEngine.execute; `market_data` supplies
-        the open-to-open return that the held position earns.
+        `executions` comes from ExecutionEngine.execute; `market_data` gives
+        the open-to-open return the position earns.
         """
         if market_data is None:
             raise ValueError("Portfolio.update needs market_data to mark positions.")
@@ -58,11 +56,10 @@ class Portfolio:
         mkt = market_data.reset_index(drop=True)
         df["ret_oo"] = mkt["ret_oo"].values
 
-        # The last candle has no forward open, so nothing can be earned on it.
-        # The Backtester has already forced the target flat there so that the
-        # exit cost was charged; all that is left is to neutralise the undefined
-        # return. If a position is still open at this point something upstream
-        # has skipped the terminal condition, so say so loudly.
+        # The last candle has no next open, so nothing is earned on it. The
+        # Backtester already set the target flat there and charged the exit
+        # cost; here we just set the missing return to 0. If a position is still
+        # open, something upstream skipped the exit, so raise an error.
         last = df.index[-1]
         if pd.isna(df.at[last, "ret_oo"]):
             if abs(float(df.at[last, "position"])) > 1e-12:
@@ -88,9 +85,8 @@ class Portfolio:
     def mark_to_market(self, market_data):
         """Mark positions to market. Returns the equity series.
 
-        Accounting here is already mark-to-market on every candle -- equity is
-        recomputed from the realised open-to-open move each period rather than
-        only when a trade closes -- so this returns the current curve.
+        Equity is already marked to market every candle (from the open-to-open
+        move, not only when a trade closes), so this returns the current curve.
         """
         if self.equity_curve.empty and market_data is not None:
             raise ValueError("Portfolio has not been updated with executions yet.")

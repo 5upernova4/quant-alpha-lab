@@ -3,17 +3,16 @@ Alpha 02 -- Oscillator Reversal.
 
 Hypothesis
 ----------
-A bounded momentum oscillator reaching an extreme is a statement about
-positioning, not about value. When the overbought flag fires, the buyers who
-were going to buy have already bought; when the oversold flag fires, the forced
-sellers are largely done. Either way the next few days lean back the other way.
+A bounded momentum oscillator at an extreme tells us about positioning, not
+value. When the overbought flag fires, most buyers have already bought; when
+the oversold flag fires, forced sellers are mostly done. Either way the next
+few days tend to move back the other way.
 
-This is a *different* hypothesis from Alpha 01 even though both are contrarian.
-Alpha 01 is continuous and always on -- it is permanently leaning against
-whatever stretch exists. Alpha 02 is an event strategy: it is flat most of the
-time and only takes a position when a discrete condition fires. The information
-arrives on different days and decays on a different schedule, which is what
-makes it worth testing separately.
+This is a different hypothesis from Alpha 01, though both are contrarian.
+Alpha 01 is continuous and always on, always leaning against the current
+stretch. Alpha 02 is an event strategy: flat most of the time, trading only
+when a flag fires. The information comes on different days and fades at a
+different speed, so it is tested separately.
 
 Signals used
 ------------
@@ -22,17 +21,16 @@ BB04 -- oversold condition from a bounded oscillator.
 
 Trading rule
 ------------
-When a flag fires, take a position in the direction the development window says
-is profitable and hold it for `hold_days`, decaying linearly. Overlapping
-triggers accumulate up to the position bound. The holding period is chosen on
-the development window from a small, pre-declared grid -- not swept until
-something looked good.
+When a flag fires, take a position in the direction the development window
+found profitable and hold it for `hold_days`, shrinking linearly. Overlapping
+triggers add up to the position bound. The holding period is picked on the
+development window from a small grid set in advance.
 
 Where it should fail
 --------------------
-An oscillator extreme that marks the *start* of a repricing rather than the end
-of one. Those cluster in regime breaks, so failures should arrive in bursts
-rather than evenly. That clustering is tested rather than assumed.
+An oscillator extreme that marks the start of a repricing, not the end.
+These cluster around regime changes, so losses should come in bursts, not
+evenly. The robustness tests check this.
 """
 
 import numpy as np
@@ -52,12 +50,11 @@ class Alpha02OscillatorReversal(BaseStrategy):
     signals_used = ["BB03", "BB04"]
     fit_horizon = 5    # Oscillator exhaustion unwinds over roughly a week.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'hold_days': [2, 3, 5, 8, 10, 15]}
 
-    HOLD_GRID = (3, 5, 10)      # declared in advance, not expanded after looking
+    HOLD_GRID = (3, 5, 10)      # set in advance, not widened after looking
 
     def __init__(self, hold_days=5, **params):
         super().__init__(hold_days=hold_days, **params)
@@ -77,11 +74,10 @@ class Alpha02OscillatorReversal(BaseStrategy):
     def fit(self, data, target=None, daily_target=None):
         """Estimate each flag's direction, then pick the holding period.
 
-        The direction comes from the horizon label; the holding period is chosen
-        on the one-day realised return net of the mandated cost, so the choice
-        answers the question a trader would ask -- which hold makes the most
-        money after paying for the turnover it creates -- rather than which hold
-        correlates best with a gross five-day number.
+        The direction comes from the horizon label. The holding period is
+        chosen on the one-day return net of the mandated cost, so it picks the
+        hold that makes the most money after paying for its turnover, not the
+        one that best matches a gross five-day return.
         """
         self.signs_ = {}
         if target is None:

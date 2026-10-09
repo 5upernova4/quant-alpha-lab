@@ -1,37 +1,34 @@
 """
-StatisticalTester -- is this alpha distinguishable from noise?
+StatisticalTester -- tests whether an alpha is different from noise.
 
-A note on the filename. The Technical Documentation mandates `statistics.py`,
-which shadows Python's standard-library module of the same name for anything
-imported after this project is on the path. Rather than break the requirement or
-leave a landmine for whoever runs this next, the stdlib module is loaded
-directly from its own location and its public names are re-exported here, so
-`import statistics` keeps working for third-party code either way.
+About the filename: the Technical Documentation requires `statistics.py`, which
+hides Python's standard-library module of the same name once this project is
+on the path. To avoid breaking other code, the stdlib module is loaded from its
+own location and its public names are re-exported here, so
+`import statistics` still works for third-party code.
 
-What is tested, and why each test is here
------------------------------------------
-Daily strategy returns break most of the assumptions a plain t-test makes. They
-are autocorrelated, fat-tailed and skewed, and -- worst of all -- we looked at
-the data before choosing the strategies. Each test below repairs one of those
-problems, and none of them repairs all of them, which is why several are run:
+What is tested and why
+----------------------
+Daily strategy returns break most t-test assumptions. They are autocorrelated,
+fat-tailed and skewed, and we looked at the data before choosing the
+strategies. Each test below handles one of these problems; none handles all of
+them, so several are run:
 
-* Plain t-test -- the baseline. Reported so the others can be compared to it.
+* Plain t-test -- the baseline, for comparison with the others.
 * Newey-West t-statistic -- corrects the standard error for autocorrelation and
-  heteroskedasticity. Strategies that hold positions for days produce serially
-  correlated returns, and ignoring that inflates significance.
-* Stationary bootstrap -- resamples blocks of returns rather than single days,
-  preserving the autocorrelation structure, and gives a confidence interval that
-  does not assume normality.
-* Signal permutation test -- the most important one. It keeps the returns and
-  shuffles the strategy's positions in blocks, destroying the timing while
-  keeping turnover and position distribution intact. It answers the question
-  that actually matters: is the performance coming from *when* the strategy
-  trades, or just from being in a market that went up?
-* Probabilistic Sharpe ratio -- the probability the true Sharpe exceeds zero,
-  adjusted for skew and kurtosis and for sample length.
+  heteroskedasticity. Strategies that hold for days have correlated daily
+  returns, and ignoring that inflates significance.
+* Stationary bootstrap -- resamples blocks of returns instead of single days,
+  which keeps the autocorrelation, and gives a confidence interval that does
+  not assume normality.
+* Signal permutation test -- the key test. It keeps the returns and shuffles
+  the strategy's positions in blocks. This breaks the timing but keeps
+  turnover and position sizes. It asks: does the performance come from when
+  the strategy trades, or just from being in a rising market?
+* Probabilistic Sharpe ratio -- the probability the true Sharpe is above zero,
+  adjusted for skew, kurtosis and sample length.
 * Deflated Sharpe / Benjamini-Hochberg -- we tested several strategies, so the
-  best-looking one is partly the best-looking *of several draws*. Both correct
-  for that, in different ways.
+  best one is partly best by luck. Both correct for this, in different ways.
 """
 
 import importlib.util as _ilu
@@ -46,7 +43,7 @@ import config
 
 # ---------------------------------------------------------------------------
 # Re-export the standard library's `statistics` so this file can shadow it
-# safely. If it cannot be located we simply carry on -- nothing here needs it.
+# safely. If it cannot be found we carry on; nothing here needs it.
 # ---------------------------------------------------------------------------
 try:
     _stdlib = _Path(_sysconfig.get_paths()["stdlib"]) / "statistics.py"
@@ -117,8 +114,8 @@ class StatisticalTester:
     def stationary_bootstrap(self, returns, statistic=None, alpha=0.05):
         """Politis-Romano stationary bootstrap confidence interval.
 
-        Block lengths are geometric with mean `block_size`, which keeps the
-        resampled series stationary while preserving short-range dependence.
+        Block lengths are geometric with mean `block_size`. This keeps the
+        resampled series stationary and keeps short-range dependence.
         """
         r = self._clean(returns).to_numpy()
         n = len(r)
@@ -145,9 +142,8 @@ class StatisticalTester:
         point = float(statistic(r))
         lo, hi = np.quantile(draws, [alpha / 2, 1 - alpha / 2])
         # two-sided bootstrap p-value for "statistic is zero"
-        # Floor at 1/n_boot: with a finite number of resamples the smallest
-        # p-value we can actually resolve is 1/n_boot, and printing 0.000 claims
-        # a precision the procedure does not have.
+        # Floor at 1/n_boot: that is the smallest p-value n_boot resamples can
+        # resolve, so printing 0.000 would overstate the precision.
         p = float(2.0 * min((draws <= 0).mean(), (draws >= 0).mean()))
         p = max(p, 1.0 / self.n_boot)
         return {
@@ -161,11 +157,10 @@ class StatisticalTester:
     def permutation_test(self, positions, asset_returns, costs_per_side=None, n_perm=1000):
         """Block-permutation test on the *timing* of the positions.
 
-        The strategy's position path is cut into blocks and reordered. Turnover
-        and the distribution of position sizes survive; the alignment between
-        position and return does not. If the real Sharpe does not stand out
-        against that null, the strategy is not timing anything -- it is just
-        holding exposure.
+        The position path is cut into blocks and reordered. Turnover and
+        position sizes stay the same; the link between position and return is
+        broken. If the real Sharpe does not beat this null, the strategy is not
+        timing anything, it is just holding exposure.
         """
         pos = self._clean(positions).to_numpy()
         ret = pd.Series(asset_returns, dtype=float).fillna(0.0).to_numpy()
@@ -192,10 +187,9 @@ class StatisticalTester:
             shuffled = np.concatenate([pos[b * bs:(b + 1) * bs] for b in order])[:n]
             null[i] = sharpe_of(shuffled)
 
-        # One-sided, upper tail, always. Switching tails on the sign of the
-        # observation would hand a losing strategy a small p-value for being
-        # reliably bad, which is not the question being asked: we want to know
-        # whether the timing produced MORE than shuffled timing would.
+        # Always one-sided, upper tail. We ask whether the timing earned more
+        # than shuffled timing. Switching tails by sign would give a losing
+        # strategy a small p-value for being reliably bad.
         p = float((null >= observed).mean())
         return {
             "observed": float(observed),
@@ -208,8 +202,8 @@ class StatisticalTester:
     def probabilistic_sharpe_ratio(self, returns, benchmark_sr=0.0):
         """Probability the true Sharpe exceeds `benchmark_sr`.
 
-        Adjusts for skew and excess kurtosis, both of which make a naive Sharpe
-        standard error too optimistic for strategies with asymmetric returns.
+        Adjusts for skew and excess kurtosis. Without this, the Sharpe
+        standard error is too small for strategies with uneven returns.
         """
         r = self._clean(returns)
         n = len(r)
@@ -217,10 +211,9 @@ class StatisticalTester:
             return {"psr": 0.5, "sharpe_daily": 0.0, "n": int(n)}
         sr = float(r.mean() / r.std(ddof=1))
         g3 = float(r.skew())
-        # pandas .kurtosis() returns EXCESS kurtosis; the Bailey-Lopez de Prado
-        # denominator is written in terms of the RAW fourth moment, so the 3 has
-        # to be added back. Plugging excess kurtosis straight in understates the
-        # variance of the Sharpe estimator and overstates the probability.
+        # pandas .kurtosis() returns excess kurtosis, but the Bailey-Lopez de
+        # Prado formula uses raw kurtosis, so add 3 back. Using excess kurtosis
+        # would understate the Sharpe variance and overstate the probability.
         g4_raw = float(r.kurtosis()) + 3.0
         sr_bm = benchmark_sr / np.sqrt(self.ppy)
         denom = np.sqrt(max(1e-12, 1.0 - g3 * sr + ((g4_raw - 1.0) / 4.0) * sr ** 2))
@@ -231,19 +224,17 @@ class StatisticalTester:
     def deflated_sharpe_ratio(self, returns, n_trials, variance_of_trial_sharpes=None):
         """Sharpe adjusted for the fact that it is the best of `n_trials`.
 
-        Selecting the best of several candidates inflates the winner's Sharpe
-        even when none of them has any edge. This computes the Sharpe a purely
-        lucky best-of-N would be expected to produce, and asks whether ours
-        clears it.
+        Picking the best of several candidates inflates its Sharpe even when
+        none has an edge. This computes the Sharpe expected from the best of N
+        by luck alone, and checks whether ours beats it.
         """
         r = self._clean(returns)
         if len(r) < 30 or n_trials < 1:
             return {"dsr": 0.5, "expected_max_sharpe": 0.0}
-        # The variance of the trial Sharpes is the whole point of the correction:
-        # a set of candidates that all scored similarly gives a lower "best of N"
-        # bar than a set that scattered widely. Falling back to a constant makes
-        # the adjustment arbitrary, so the caller passes the observed spread and
-        # 0.5 is only a last resort when a single strategy is being tested.
+        # The variance of the trial Sharpes drives the correction: candidates
+        # with similar scores give a lower "best of N" bar than widely spread
+        # ones. The caller should pass the observed spread; 0.5 is only a
+        # fallback when a single strategy is tested.
         v = 0.5 if variance_of_trial_sharpes is None else float(variance_of_trial_sharpes)
         e = 0.5772156649015329                      # Euler-Mascheroni
         n = max(2, int(n_trials))

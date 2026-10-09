@@ -1,16 +1,14 @@
 """
 ResearchContext -- builds the data once and hands out consistent slices.
 
-Not a mandated module, but the alternative is every script rebuilding the panel
-with its own slightly different assumptions, which is how two tables in the same
-report end up disagreeing. Everything downstream -- Task 2 research, Task 3
-allocation, the final evaluation -- pulls its data from here.
+Not a required module. Without it, each script would rebuild the panel in
+its own way and tables in the report could disagree. Task 2 research, Task 3
+allocation and the final evaluation all get their data from here.
 
-It also owns the development/holdout boundary. That boundary is the single most
-important discipline in the project: every sign estimate, parameter choice and
-model fit happens on the development slice, and the holdout is scored exactly
-once at the end. Making the split a property of a shared object rather than a
-convention in each script means it cannot quietly drift.
+It also owns the development/holdout split. Every sign estimate, parameter
+choice and model fit uses the development slice, and the holdout is scored
+once at the end. Keeping the split in one shared object means every script
+uses the same dates.
 """
 
 import numpy as np
@@ -82,10 +80,9 @@ class ResearchContext:
     def target(self, split="dev", horizon=1):
         """The forward-return label used to fit strategies.
 
-        Price is legitimate here and only here -- as a supervised-learning label,
-        never as a feature. The label is the open-to-open return the strategy
-        would actually capture, so what a strategy is fitted to and what it is
-        scored on are the same quantity.
+        Price is used here only as a label, never as a feature. The label is
+        the open-to-open return the strategy would earn, so strategies are
+        fitted and scored on the same quantity.
         """
         _, market = self.slice(split)
         if horizon == 1:
@@ -93,11 +90,9 @@ class ResearchContext:
         else:
             y = market["open"].shift(-horizon) / market["open"] - 1.0
 
-        # The last `horizon` rows of a window would be labelled with prices from
-        # the window that follows it. On the development split that means the
-        # label for the final candles is computed from holdout opens, which is a
-        # small but genuine leak across the boundary the whole protocol rests on.
-        # Blanking them costs a handful of observations and removes the leak.
+        # The last `horizon` rows of a window would use prices from the next
+        # window. On the dev split, that means holdout opens leak into the
+        # label. Setting them to NaN loses a few rows and removes the leak.
         y = y.copy()
         y.iloc[-horizon:] = np.nan
         return y.reset_index(drop=True)
@@ -108,18 +103,16 @@ class ResearchContext:
     def positions_on_full_history(self, strategy):
         """Generate the position path once, over the whole history.
 
-        This exists because of a subtle and expensive mistake: several strategies
-        use trailing windows (z-scores, decay kernels), and if the data is sliced
-        *before* the positions are generated, every one of those windows restarts
-        at the slice boundary. The holdout would then be scored on a strategy
-        that had amnesia on 1 January, and the same date would get two different
-        positions depending on which window it was evaluated in.
+        Several strategies use trailing windows (z-scores, decay kernels). If
+        the data is sliced before positions are made, those windows restart at
+        the slice start. The holdout would then start with empty windows on
+        1 January, and the same date could get two different positions
+        depending on the slice.
 
-        Generating on the full history and slicing afterwards fixes that, and it
-        is also what actually happens in production -- a live strategy does not
-        forget its warm-up because the evaluation period changed. No look-ahead is
-        introduced: every position still depends only on signals strictly older
-        than its own candle.
+        Making positions on the full history and slicing after fixes this, and
+        matches live trading, where a strategy keeps its warm-up. There is no
+        look-ahead: each position still uses only signals from before its
+        candle.
         """
         inputs = self.decision.drop(columns=["information_asof"], errors="ignore")
         return strategy.generate_signal(inputs)
@@ -127,9 +120,9 @@ class ResearchContext:
     def run_strategy(self, strategy, split="full", cost=None, slippage_bps=None, label=None):
         """Backtest one strategy on one split under the standard assumptions.
 
-        Positions come from the full history (see positions_on_full_history), then
-        the window is cut. The first candle of the window is entered from flat, so
-        the entry cost is charged rather than inherited.
+        Positions come from the full history (see positions_on_full_history),
+        then the window is cut. The first candle is entered from flat, so the
+        entry cost is charged.
         """
         mask = self._mask(split).to_numpy()
         positions = self.positions_on_full_history(strategy)
@@ -150,15 +143,14 @@ class ResearchContext:
     def fit_strategies(self, strategies, split="dev", horizon=None):
         """Fit every strategy on the development window. Never on the holdout.
 
-        Each strategy is fitted against the forward-return horizon it declares,
-        because the horizon is part of the hypothesis. Pass `horizon` to override
-        that for a controlled experiment.
+        Each strategy is fitted at its own forward-return horizon, since the
+        horizon is part of the hypothesis. Pass `horizon` to override it for a
+        test.
 
-        One caveat carried into the report: horizons longer than a day produce
-        overlapping windows, so the t-statistics reported at the fitting stage
-        are screening statistics and overstate significance. Real significance is
-        established later on the non-overlapping daily return series of the
-        backtest, with autocorrelation-robust standard errors.
+        Caveat (also in the report): horizons over one day give overlapping
+        windows, so the t-stats at the fitting stage overstate significance and
+        are only for screening. Significance is tested later on the daily
+        backtest returns, with autocorrelation-robust standard errors.
         """
         if split != "dev":
             raise ValueError(

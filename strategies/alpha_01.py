@@ -3,37 +3,37 @@ Alpha 01 -- Trend-Stretch Reversion.
 
 Hypothesis
 ----------
-Price does not move away from its own trend reference indefinitely. When the
-normalised gap between price and a medium-term reference becomes unusually wide,
-the marginal buyer at that level is paying a premium for a move that has already
-happened, and the gap closes. The trade is to lean against the stretch: short
-when price is far above its reference, long when it is far below.
+Price does not stay far from its trend reference forever. When the normalised
+gap between price and a medium-term reference gets unusually wide, buyers at
+that level are paying for a move that already happened, and the gap closes.
+The trade goes against the stretch: short when price is far above its
+reference, long when far below.
 
-This is short-horizon overreaction, and it is the most widely documented effect
-in liquid single-instrument daily data -- liquidity provision earns a premium
-precisely because someone has to take the other side of a crowded move.
+This is short-term overreaction, a well-documented effect in liquid daily
+data. Providing liquidity earns a premium because someone has to take the
+other side of a crowded move.
 
 Signals used
 ------------
 PB07 -- normalised distance of price from a medium-term trend reference.
 PB08 -- normalised separation between two trend references (trend strength).
 
-Both are continuous and bounded, which makes them suitable as a *sizing*
-variable rather than a binary switch: a large stretch should produce a large
-position, a small one a small position.
+Both are continuous and bounded, so they can size the position instead of
+acting as an on/off switch: a large stretch gives a large position, a small
+one a small position.
 
 Trading rule
 ------------
-Standardise each driver against its own trailing window, flip it to the sign the
-development window says is profitable, average the two, and squash into a
-position. Horizon is a few days -- the position decays naturally as the stretch
-closes, with no explicit exit rule.
+Z-score each driver over its own trailing window, set its sign to the one
+the development window found profitable, average the two, and squash into a
+position. Horizon is a few days. The position shrinks as the stretch closes,
+with no separate exit rule.
 
 Where it should fail
 --------------------
-In a genuine sustained trend, "stretched" stays stretched and the strategy
-fights it the whole way. That is the systematic failure mode and it is examined
-directly in the robustness section.
+In a real sustained trend, the stretch stays wide and the strategy fights it
+the whole way. This is the main failure mode and is checked in the robustness
+section.
 """
 
 import numpy as np
@@ -52,9 +52,8 @@ class Alpha01TrendStretchReversion(BaseStrategy):
     signals_used = ["PB07", "PB08"]
     fit_horizon = 10    # Stretch closes over days, not overnight; PB07/PB08 are medium-term references.
 
-    # The grid the robustness sweep explores. Declared on the class so the
-    # sweep tests settings the hypothesis actually permits, rather than an
-    # arbitrary range invented at report time.
+    # The grid used by the robustness sweep. Set on the class so the sweep
+    # tests settings the hypothesis allows, not a range picked at report time.
     PARAM_GRID = {'z_window': [30, 45, 60, 90, 120], 'scale': [0.8, 1.0, 1.2, 1.6]}
 
     def __init__(self, z_window=60, scale=1.2, **params):
