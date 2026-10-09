@@ -1,0 +1,649 @@
+Multi-Alpha Research Lab -- run started 2026-10-10 01:05:26
+Transaction cost 0.0500% per side | fills at candle t's open | signals lagged 1 candle
+
+####################################################################################################
+# TASK 1 -- DATA & BACKTESTING INFRASTRUCTURE
+####################################################################################################
+DATA QUALITY REPORT
+==============================================================
+Raw price file  : 1000 rows, 14 duplicate dates, 0 null cells
+Raw signal file : 1000 rows, 0 duplicate dates, 51 null cells
+--------------------------------------------------------------
+  - Normalised mixed date formats in the price file (%Y-%m-%d x973, %d-%m-%Y x27).
+  - Removed 14 duplicate price rows (one per repeated date).
+  - Re-sorted rows into chronological order (raw file was shuffled).
+  - Left warm-up NaNs in place (no backward fill) for: BB06 x19, BB07 x13, VB05 x19
+  - 14 dates carry signals but no price row; they are not tradeable, so they are excluded from the trading calendar but retained in the information set.
+--------------------------------------------------------------
+Clean price panel: 986 tradeable dates, OHLC consistency violations: 0
+
+FEATURE / INFORMATION AUDIT
+==============================================================
+  tradeable_dates                 : 986
+  rows_without_prior_signal       : 1
+  mean_information_age_days       : 1.402030456852792
+  lookahead_rows_checked          : 250
+  lookahead_status                : PASS
+
+SPLITS
+==============================================================
+  dev     :  770 candles   2018-01-02 -> 2020-12-31
+  holdout :  216 candles   2021-01-01 -> 2021-11-01
+  full    :  986 candles   2018-01-02 -> 2021-11-01
+
+----------------------------------------------------------------------------------------------------
+RESEARCH-INTEGRITY CHECKS
+----------------------------------------------------------------------------------------------------
+  [PASS] Signal information is strictly older than the candle it trades PASS (400 rows re-derived from the raw file)
+  [PASS] Decision frame exposes no price or volume column               PASS
+  [PASS] Vectorised engine reproduces the per-candle reference loop     PASS (max equity difference 6.66e-16)
+  [PASS] A full round trip costs 0.10% of notional                      PASS (0.100%)
+  [PASS] Trades fill at candle t's open                                 PASS (execution price field = 'open')
+  [PASS] Development and holdout windows are disjoint                   PASS
+
+----------------------------------------------------------------------------------------------------
+BASELINE STRATEGY
+----------------------------------------------------------------------------------------------------
+  hypothesis: PB01 flags an up-trend; hold the asset while it is on.
+
+PERFORMANCE -- Baseline (PB01 long-only)
+==============================================================
+  Periods                           986
+  Total return                         -11.32%
+  Annualized return                     -3.02%
+  Annualized volatility                 12.38%
+  Sharpe ratio                           -0.19
+  Sortino ratio                          -0.26
+  Calmar ratio                           -0.09
+  Max drawdown                         -32.13%
+  Max drawdown duration (days)             691
+  Hit rate (all days)                   32.76%
+  Hit rate (days with a position)       49.54%
+  Profit factor                           0.96
+  Return skew                             0.22
+  Daily VaR (95%)                       -1.34%
+  Daily CVaR (95%)                      -1.97%
+  Annual turnover (x notional)             8.7
+  Time in market                        66.13%
+  Long / short split                 66.1% / 0.0%
+  Annualized cost drag                   0.43%
+
+PERFORMANCE -- Buy and hold (reference)
+==============================================================
+  Periods                           986
+  Total return                          36.31%
+  Annualized return                      8.24%
+  Annualized volatility                 16.08%
+  Sharpe ratio                            0.57
+  Sortino ratio                           0.85
+  Calmar ratio                            0.44
+  Max drawdown                         -18.86%
+  Max drawdown duration (days)             429
+  Hit rate (all days)                   50.81%
+  Hit rate (days with a position)         nan%
+  Profit factor                           1.11
+  Return skew                             0.21
+  Daily VaR (95%)                       -1.61%
+  Daily CVaR (95%)                      -2.26%
+
+  The baseline loses money after costs while the asset itself rose. That is the
+  motivating result for Task 2: the obvious reading of a trend flag is wrong here.
+
+####################################################################################################
+# TASK 2 -- ALPHA DISCOVERY & RESEARCH
+####################################################################################################
+CANDIDATE STRATEGIES (directions estimated on the development window only)
+----------------------------------------------------------------------------------------------------
+  alpha_01  Alpha01_TrendStretchReversion
+      Price stretched far from its medium-term trend reference reverts; fade the size of the stretch.
+      signals PB07, PB08 | horizon 10d | retained PB07-1
+  alpha_02  Alpha02_OscillatorReversal
+      Bounded-oscillator extremes mark exhaustion of a positioning flow; fade the extreme for a few days.
+      signals BB03, BB04 | horizon 5d | retained BB03-1
+  alpha_03  Alpha03_TrendStateFade
+      Agreement among trend-state flags marks a crowded, already-paid-for move; position against the consensus.
+      signals PB01, PB02, PB03, PB04, PB05 | horizon 10d | retained PB01-1, PB03-1, PB04-1
+  alpha_04  Alpha04_BandPositionReversion
+      Volatility-adjusted position within the band reverts; band-edge breakouts are more often exhaustion than continuation.
+      signals BB06, BB01, BB02 | horizon 10d | retained BB06-1
+  alpha_05  Alpha05_VolumeFlowContinuation
+      Moves backed by unusual participation reflect orders still being worked and continue at short horizon.
+      signals VB01, VB02, VB03, VB04, VB05 | horizon 1d | retained VB01-1, VB02+1, VB05-1
+  alpha_06  Alpha06_VolatilityRegimeReversion
+      Reversion pays most when volatility is elevated or a squeeze has just released; use the volatility state to size a plain reversion core.
+      signals BB07, BB05, BB06 | horizon 10d | retained BB06_core-1, vol_interaction+1
+
+----------------------------------------------------------------------------------------------------
+DEVELOPMENT-WINDOW RESULTS
+----------------------------------------------------------------------------------------------------
+TASK 2 -- ALPHA RESEARCH (dev window)
+======================================================================================================================
+
+[Performance]
+    strategy  ann_return  volatility   sharpe  sortino   calmar  max_drawdown  max_dd_days  hit_rate_active  pct_days_active  annual_turnover  cost_drag
+    alpha_01      -0.019       0.113   -0.119   -0.173   -0.094        -0.207          638            0.460            0.960           40.733      0.020
+    alpha_02       0.038       0.049    0.787    1.345    0.718        -0.053          354            0.500            0.286           12.305      0.006
+    alpha_03       0.066       0.138    0.530    0.813    0.274        -0.239          406            0.488            0.997           34.036      0.017
+    alpha_04      -0.021       0.100   -0.157   -0.226   -0.092        -0.223          639            0.473            0.973           48.241      0.024
+    alpha_05       0.128       0.126    1.024    1.606    1.186        -0.108          195            0.505            0.997           98.542      0.049
+    alpha_06      -0.011       0.114   -0.044   -0.065   -0.055        -0.207          554            0.473            0.973           49.007      0.025
+buy_and_hold       0.097       0.176    0.616    0.914    0.517        -0.189          429              NaN            1.000            0.000        NaN
+
+[Significance]
+   label  t_t_stat  nw_t_stat  nw_p_value  nw_p_fdr  boot_point  boot_ci_low  boot_ci_high  psr_psr  dsr_dsr  perm_p_value
+alpha_01    -0.208     -0.220       0.826     0.939      -0.119       -1.052         0.743    0.418    0.035         0.423
+alpha_02     1.375      1.440       0.150     0.449       0.787       -0.278         1.786    0.925    0.404         0.008
+alpha_03     0.926      0.853       0.394     0.787       0.530       -0.675         1.735    0.824    0.246         0.097
+alpha_04    -0.275     -0.272       0.786     0.939      -0.157       -1.200         0.878    0.392    0.030         0.385
+alpha_05     1.791      1.854       0.064     0.382       1.024        0.117         2.007    0.965    0.574         0.020
+alpha_06    -0.078     -0.076       0.939     0.939      -0.044       -1.065         0.958    0.469    0.046         0.337
+
+[Robustness]
+strategy  n_subperiods  pct_subperiods_positive  worst_subperiod_sharpe  breakeven_cost_bps  sharpe_at_2x_cost  noise_retention_5pct  pct_failures_fighting_trend  param_plateau_score  param_pct_positive  param_sharpe_spread  decay_slope  decay_t  first_half_sharpe  second_half_sharpe  annual_turnover  cost_to_gross
+alpha_01             3                    0.333                  -0.965               1.250             -0.299                   NaN                        0.800                0.000               0.000                0.097        0.235    0.778             -0.686               0.667           40.733         23.351
+alpha_02             3                    0.667                  -0.102              25.000              0.661                 0.452                        1.000                0.825               1.000                0.124        0.250    1.122              0.243               1.252           12.305          0.139
+alpha_03             3                    0.667                  -0.407              20.000              0.406                 0.823                        1.000                0.338               0.400                0.365        0.044    0.104              0.090               1.034           34.036          0.206
+alpha_04             3                    0.333                  -1.068               1.250             -0.398                   NaN                        0.800                0.000               0.000                0.034        0.279    0.832             -0.829               0.735           48.241          6.674
+alpha_05             3                    1.000                   0.553              20.000              0.632                 0.825                        0.600                0.947               1.000                0.044        0.039    0.250              0.986               1.109           98.542          0.277
+alpha_06             3                    0.333                  -0.712               3.750             -0.260                   NaN                        1.000               -0.419               0.222                0.060        0.273    0.945             -0.690               0.868           49.007          1.876
+
+INDEPENDENT-ALPHA / RETURN-SPACE ANALYSIS
+==================================================================================
+  6 strategies span 6 numerically independent directions.
+  4 components explain 95% of the variance; participation ratio 1.98 (an effective count of independent streams).
+  Condition number 12.4.
+
+[Pivoted QR -- incremental contribution]
+ selection_order strategy  incremental_norm  own_norm  independent_fraction  explained_by_earlier  relative_to_first
+               1 alpha_03            0.2410    0.2410                1.0000                0.0000             1.0000
+               2 alpha_05            0.2151    0.2195                0.9608                0.0392             0.8927
+               3 alpha_01            0.1314    0.1967                0.4464                0.5536             0.5452
+               4 alpha_06            0.0945    0.1987                0.2260                0.7740             0.3920
+               5 alpha_02            0.0761    0.0858                0.7864                0.2136             0.3156
+               6 alpha_04            0.0384    0.1748                0.0484                0.9516             0.1595
+
+[Residual after projecting out all others]
+strategy  alpha_ann  residual_sharpe  r_squared_vs_others  residual_share_of_vol
+alpha_02     0.0420           0.9970               0.2635                 0.8582
+alpha_05     0.0953           0.8771               0.2528                 0.8644
+alpha_03     0.0563           0.6297               0.5796                 0.6484
+alpha_06     0.0160           0.5576               0.9366                 0.2519
+alpha_01    -0.0134          -0.2581               0.7887                 0.4596
+alpha_04    -0.0125          -0.5671               0.9516                 0.2200
+
+[Sequential Gram-Schmidt residuals]
+ order strategy  residual_fraction  r_squared_vs_earlier
+     1 alpha_01             1.0000                0.0000
+     2 alpha_02             0.9049                0.1812
+     3 alpha_03             0.6954                0.5165
+     4 alpha_04             0.4415                0.8051
+     5 alpha_05             0.8680                0.2466
+     6 alpha_06             0.2519                0.9366
+
+[Stability through time]
+  modal pivot order : alpha_03|alpha_05|alpha_01|alpha_06|alpha_02|alpha_04
+  order held in     : 52.4% of windows
+  first pick held in: 100.0% of windows
+
+  Caveat carried into the selection: a mathematically new direction is not proof of
+  economic independence. These results are read together with the hypothesis and the
+  robustness evidence, never on their own.
+
+[Selection -- rule declared before the holdout was opened]
+    GATES (all must pass)
+      G1 timing      : permutation p <= 0.3
+      G2 cost        : break-even cost >= 5.0 bps per side
+      G3 incremental : residual Sharpe > 0.0 after hedging out the others
+    RANK on the mean z-score of dev_sharpe, subperiods_positive, decay_slope, noise_retention, turnover_efficiency
+      keep composite >= 0.0, minimum 3 strategies
+strategy  dev_sharpe  permutation_p  breakeven_cost_bps  residual_sharpe  decay_slope  annual_turnover  passes_gates  composite_score  selected                                             excluded_because
+alpha_01      -0.119          0.423               1.250           -0.258        0.235           40.733         False           -0.329     False fails timing test, not cost-viable, adds nothing incremental
+alpha_02       0.787          0.008              25.000            0.997        0.250           12.305          True            0.484      True                                                             
+alpha_03       0.530          0.097              20.000            0.630        0.044           34.036          True            0.066      True                                                             
+alpha_04      -0.157          0.385               1.250           -0.567        0.279           48.241         False           -0.313     False fails timing test, not cost-viable, adds nothing incremental
+alpha_05       1.024          0.020              20.000            0.877        0.039           98.542          True            0.185      True                                                             
+alpha_06      -0.044          0.337               3.750            0.558        0.273           49.007         False           -0.277     False                           fails timing test, not cost-viable
+
+  SELECTED SET: alpha_02, alpha_05, alpha_03
+
+----------------------------------------------------------------------------------------------------
+HOLDOUT -- opened once, after the set above was frozen
+----------------------------------------------------------------------------------------------------
+    strategy  ann_return  volatility   sharpe  sortino   calmar  max_drawdown  max_dd_days  hit_rate_active  pct_days_active  annual_turnover  cost_drag
+    alpha_01       0.011       0.059    0.209    0.304    0.198        -0.054           65            0.470            0.995           53.748      0.027
+    alpha_02       0.011       0.018    0.644    1.097    0.916        -0.012          153            0.548            0.144            6.533      0.003
+    alpha_03       0.141       0.067    1.997    3.190    2.068        -0.068           64            0.535            0.995           52.889      0.026
+    alpha_04       0.071       0.048    1.458    2.274    1.954        -0.037           65            0.549            0.995           67.245      0.034
+    alpha_05      -0.083       0.058   -1.449   -1.931   -0.742        -0.112          198            0.414            0.995          112.973      0.056
+    alpha_06       0.038       0.051    0.762    1.119    0.810        -0.047           65            0.558            0.995           57.152      0.029
+buy_and_hold       0.020       0.085    0.275    0.399    0.342        -0.058          165              NaN            1.000            0.000        NaN
+
+[Development vs holdout -- the overfitting check]
+strategy  dev_sharpe  holdout_sharpe  selected  sharpe_decay
+alpha_01      -0.119           0.209     False        -0.328
+alpha_02       0.787           0.644      True         0.142
+alpha_03       0.530           1.997      True        -1.467
+alpha_04      -0.157           1.458     False        -1.615
+alpha_05       1.024          -1.449      True         2.473
+alpha_06      -0.044           0.762     False        -0.807
+
+####################################################################################################
+# TASK 3 -- ALPHA PORTFOLIO CONSTRUCTION & DYNAMIC ALLOCATION
+####################################################################################################
+  Task 2 set (frozen before the holdout) : alpha_02, alpha_05, alpha_03
+  Added at Task 3                        : alpha_07
+  Allocating across                      : alpha_02, alpha_05, alpha_03, alpha_07
+
+----------------------------------------------------------------------------------------------------
+LATE ADDITION: alpha_07 (written after the Task 2 holdout was opened)
+----------------------------------------------------------------------------------------------------
+  Hold the instrument's drift as the default position and lean against oscillator extremes and trend-flag crowding, instead of trading reversion from flat.
+  settings chosen on dev : {'anchor': 1.0, 'osc_hold': 5, 'trend_hold': 8, 'gain': 1.25, 'dev_sharpe_net_of_cost': 1.07, 'combinations_searched': 180}
+  overlay signs on dev   : {'BB03': -1.0, 'BB04': 0.0, 'trend_consensus': -1.0}
+strategy                    alpha_07
+dev_sharpe                     1.069
+dev_ann_return                 0.158
+dev_max_drawdown              -0.148
+nw_t                           1.846
+nw_p                           0.065
+boot_ci_low                   -0.102
+boot_ci_high                   2.232
+deflated_sharpe_prob           0.562
+deflated_sharpe_prob_grid      0.789
+grid_expected_max_sharpe       0.614
+permutation_p                  0.048
+breakeven_cost_bps            25.000
+sharpe_at_2x_cost              0.984
+subperiods_positive            0.667
+param_pct_positive             1.000
+param_plateau                  0.736
+noise_retention_5pct           0.903
+annual_turnover               25.091
+residual_sharpe_vs_book        0.548
+holdout_sharpe                 1.800
+holdout_ann_return             0.108
+
+  Same gates as Task 2 would have applied: permutation p <= 0.30, break-even
+  >= 5 bps per side, residual Sharpe > 0 after the rest of the book.
+
+----------------------------------------------------------------------------------------------------
+[dev window]
+FACTOR MODEL -- systematic vs strategy-specific
+========================================================================================================
+  Factors: MKT (buy-and-hold), VOL (change in realised vol), REV (parameter-free contrarian rule)
+  Standard errors are Newey-West; daily strategy returns are autocorrelated.
+
+strategy  alpha_daily  alpha_annual  alpha_t  r_squared  residual_vol_ann  residual_sharpe  beta_MKT    t_MKT  beta_VOL    t_VOL  beta_REV    t_REV
+alpha_02        0.000         0.055    2.201      0.184             0.044            1.247    -0.114   -4.821     0.636    2.822     0.002    0.098
+alpha_05        0.000         0.054    0.848      0.179             0.114            0.475     0.200    3.430     0.863    1.553    -0.215   -4.074
+alpha_03        0.000         0.106    1.285      0.041             0.135            0.788     0.048    0.611     2.014    2.743     0.103    1.765
+alpha_07        0.000         0.115    1.663      0.333             0.121            0.956     0.476    6.631     1.512    2.628     0.007    0.144
+
+[Variance decomposition]
+strategy  alpha_annual  alpha_t  r_squared  systematic_share_of_variance  specific_share_of_variance  residual_vol_ann  residual_sharpe
+alpha_02         0.055    2.201      0.184                         0.184                       0.816             0.044            1.247
+alpha_05         0.054    0.848      0.179                         0.179                       0.821             0.114            0.475
+alpha_03         0.106    1.285      0.041                         0.041                       0.959             0.135            0.788
+alpha_07         0.115    1.663      0.333                         0.333                       0.667             0.121            0.956
+
+----------------------------------------------------------------------------------------------------
+[holdout window]
+FACTOR MODEL -- systematic vs strategy-specific
+========================================================================================================
+  Factors: MKT (buy-and-hold), VOL (change in realised vol), REV (parameter-free contrarian rule)
+  Standard errors are Newey-West; daily strategy returns are autocorrelated.
+
+strategy  alpha_daily  alpha_annual  alpha_t  r_squared  residual_vol_ann  residual_sharpe  beta_MKT    t_MKT  beta_VOL    t_VOL  beta_REV    t_REV
+alpha_02        0.000         0.012    1.155      0.225             0.016            0.778    -0.094   -3.044     0.730    1.754    -0.008   -0.326
+alpha_05       -0.000        -0.087   -1.698      0.082             0.056           -1.554     0.041    0.390    -0.579   -0.444    -0.197   -2.184
+alpha_03        0.001         0.142    2.639      0.327             0.055            2.576    -0.449   -4.471     1.698    1.598     0.016    0.205
+alpha_07        0.000         0.094    1.880      0.158             0.053            1.771     0.230    2.065     1.342    1.171    -0.142   -1.704
+
+[Variance decomposition]
+strategy  alpha_annual  alpha_t  r_squared  systematic_share_of_variance  specific_share_of_variance  residual_vol_ann  residual_sharpe
+alpha_02         0.012    1.155      0.225                         0.225                       0.775             0.016            0.778
+alpha_05        -0.087   -1.698      0.082                         0.082                       0.918             0.056           -1.554
+alpha_03         0.142    2.639      0.327                         0.327                       0.673             0.055            2.576
+alpha_07         0.094    1.880      0.158                         0.158                       0.842             0.053            1.771
+
+----------------------------------------------------------------------------------------------------
+STATIC ALLOCATIONS (fitted on the development window)
+          equal_weight  inverse_volatility  risk_parity  max_sharpe  mean_variance
+strategy                                                                          
+alpha_02         0.250               0.481        0.478       0.600          0.000
+alpha_05         0.250               0.188        0.220       0.241          0.503
+alpha_03         0.250               0.171        0.163       0.058          0.000
+alpha_07         0.250               0.160        0.139       0.101          0.497
+
+[Share of portfolio variance from each strategy -- concentration in risk terms]
+          equal_weight  inverse_volatility  risk_parity  max_sharpe  mean_variance
+strategy                                                                          
+alpha_02         0.071               0.251        0.250       0.397          0.000
+alpha_05         0.203               0.178        0.248       0.364          0.434
+alpha_03         0.334               0.277        0.257       0.069          0.000
+alpha_07         0.393               0.294        0.245       0.169          0.566
+
+PORTFOLIO OPTIMISATION
+==============================================================================
+  strategies                 : 4
+  observations               : 770
+  observations per parameter : 55.0
+  mean shrinkage             : 0.5
+  covariance condition number: 13.9
+  max weight / shorting      : 0.6 / False
+
+[Expected returns, annualised]
+    alpha_02                     sample  +3.86%   shrunk  +6.91%
+    alpha_05                     sample +12.87%   shrunk +11.41%
+    alpha_03                     sample  +7.31%   shrunk  +8.63%
+    alpha_07                     sample +15.78%   shrunk +12.87%
+
+[Weights -- mean_variance]
+    alpha_02                       0.00%
+    alpha_05                      50.30%
+    alpha_03                       0.00%
+    alpha_07                      49.70%
+
+----------------------------------------------------------------------------------------------------
+ALPHA META-MODEL -- learned effectiveness component
+====================================================================================
+
+[1. Capacity]
+  model                      : ridge regression (linear, L2-regularised)
+  features                   : 10
+  rows (strategy x block)    : 132
+  independent market blocks  : 33
+  blocks per feature         : 3.3
+  ridge penalty (in-fold CV) : 100.0
+  About three independent blocks per feature. A linear, penalised model
+  on a handful of slow features is as much capacity as that supports.
+
+[2. Walk-forward validation]
+ fold_block  n_train  n_test  ridge_alpha  train_r2   val_r2  test_r2  train_ic   val_ic  test_ic
+          6       16       4       10.000     0.661      NaN  -60.250     0.250      NaN   -0.400
+          7       20       4       10.000     0.606      NaN   -9.800    -0.040      NaN    0.400
+          8       24       4       10.000     0.541      NaN   -0.324     0.100      NaN    1.000
+          9       28       4       10.000     0.536      NaN    0.312     0.200      NaN    0.800
+         10       32       4      100.000     0.296   -0.068   -0.030     0.425    0.600   -0.200
+         11       36       4      100.000     0.233   -0.159   -2.268     0.378    0.433    0.800
+         12       40       4      100.000     0.182   -0.177   -0.105     0.320    0.514   -1.000
+         13       44       4      100.000     0.147   -0.209   -2.015     0.073    0.300   -0.200
+         14       48       4      100.000     0.123   -0.125   -1.593    -0.033    0.178   -0.800
+         15       52       4      100.000     0.123   -0.110    0.076    -0.123    0.089    1.000
+         16       56       4      100.000     0.131   -0.103    0.019     0.057    0.060    0.400
+         17       60       4      100.000     0.144   -0.017    0.364     0.093    0.182    0.800
+         18       64       4      100.000     0.147   -0.017    0.015     0.150    0.150    0.200
+         19       68       4      100.000     0.155   -0.010   -6.815     0.153    0.183    0.600
+         20       72       4      100.000     0.144   -0.062   -0.802     0.167    0.308   -0.800
+         21       76       4      100.000     0.133   -0.070   -0.935     0.116    0.243    0.400
+         22       80       4      100.000     0.119   -0.043   -0.228     0.190    0.240   -0.400
+         23       84       4      100.000     0.128   -0.035    0.124     0.181    0.080    0.400
+         24       88       4      100.000     0.131    0.011   -2.307     0.164    0.175   -1.000
+         25       92       4       10.000     0.229    0.033   -0.635     0.122    0.106    0.000
+         26       96       4      100.000     0.171    0.029   -0.008     0.108    0.089    0.400
+         27      100       4      100.000     0.171    0.012   -2.309     0.120   -0.033   -0.800
+         28      104       4      100.000     0.171    0.040   -0.731     0.069   -0.021   -0.400
+         29      108       4      100.000     0.168    0.051  -27.537     0.015    0.010    0.800
+         30      112       4      100.000     0.158    0.046   -0.020     0.043    0.057    0.800
+         31      116       4      100.000     0.168    0.061   -0.491     0.097    0.048    0.800
+         32      120       4      100.000     0.175    0.053   -0.298     0.173    0.164   -0.400
+         33      124       4      100.000     0.156    0.040   -1.245     0.168    0.122   -0.400
+         34      128       4      100.000     0.156    0.041   -0.274     0.138    0.100   -0.800
+
+  on the 25 folds with an inner-CV penalty (the first 4 are too short to cross-validate and use a fixed penalty):
+                     train      validation   test
+  R2                +0.1623     -0.0315     +0.0303   (test pooled over those folds' predictions)
+  x-sectional IC    +0.1345     +0.1750     +0.0080   (mean over blocks)
+
+  train -> test R2 gap    : +0.1319
+  train -> test IC gap    : +0.1265
+  all 29 folds: mean test IC +0.0690 (the null baseline's statistic)
+  pooled test IC          : +0.2806 over 116 predictions (includes timing the allocator discards)
+  folds with test IC > 0  : 51.7%
+
+[3. Null baseline: same walk-forward on within-block shuffled labels]
+  real mean test IC       : +0.0690
+  null mean test IC       : -0.0126 (sd 0.1109)
+  null 95th percentile IC : +0.1662
+  permutation p-value     : 0.2388 over 200 permutations
+  verdict                 : DOES NOT clear the null baseline -> report as indistinguishable from noise
+
+[Standardised coefficients, full dev fit]
+  feature  coefficient  abs_coefficient
+ state_bb      -0.0472           0.0472
+state_vol       0.0439           0.0439
+ state_pb      -0.0314           0.0314
+ state_vb       0.0214           0.0214
+   hit_1b      -0.0177           0.0177
+vol_ratio       0.0133           0.0133
+   ret_1b      -0.0098           0.0098
+   ret_3b      -0.0070           0.0070
+ drawdown      -0.0069           0.0069
+   vol_1b       0.0030           0.0030
+
+----------------------------------------------------------------------------------------------------
+DYNAMIC ALLOCATION (gated, run continuously across the whole history)
+DYNAMIC ALLOCATION
+========================================================================
+  tilt strength   : 0.5 (scaled by demonstrated skill: on)
+  final confidence: 0.000 (0 = hold base weights, 1 = full tilt)
+  skill gate      : >= 6 closed folds and IC t-stat >= 1.0
+  gate open at    : 16.3% of rebalances
+  blend with base : 0.5
+  no-trade band   : 0.05
+  weight bounds   : [0.0, 0.5]
+  rebalance points: 43  (traded at 11)
+  total turnover  : 2.02x notional
+
+[Average weights]
+    alpha_02                      46.77%  (min 37.11%, max 51.22%)
+    alpha_05                      22.20%  (min 16.03%, max 31.85%)
+    alpha_03                      16.84%  (min 16.22%, max 24.03%)
+    alpha_07                      14.20%  (min 13.21%, max 18.65%)
+
+  first model-driven allocation: 2018-08-01 (earlier blocks hold the base weights while history builds up)
+
+ALLOCATION-LEVEL NULL: ungated model tilt vs random tilts through the same rules
+             window      start        end  model_sharpe_minus_base  null_mean  null_p95  p_value  model_turnover  null_mean_turnover
+dev (after warm-up) 2018-08-01 2020-12-31                    0.079     -0.010     0.160    0.184           5.882               7.482
+            holdout 2020-12-31 2021-11-01                   -0.287     -0.022     0.309    0.871           5.882               7.482
+
+COST NETTING (one account instead of N separate ones, equal weight, full history)
+    gross_turnover_annual                 43.7692
+    netted_turnover_annual                33.0947
+    cost_if_charged_separately             0.0219
+    cost_as_one_book                       0.0165
+    annual_saving_from_netting             0.0053
+
+ALLOCATION COMPARISON -- DEV
+  (static weights were fitted on this window, so these are in-sample)
+FINAL EVALUATION -- dev
+================================================================================================================================
+              method   n  total_return  ann_return  volatility    sharpe   sortino    calmar  max_drawdown  max_dd_days  annual_turnover  cost_drag  effective_n  excess_ann_return  information_ratio
+   1_best_individual 770        0.5667      0.1583      0.1477    1.0687    1.6809    1.0686       -0.1481          230          25.0909     0.0125          NaN             0.0533             0.5965
+      2_equal_weight 770        0.3645      0.1071      0.0746    1.4014    2.4312    1.3816       -0.0775          156          32.6070     0.0163       4.0000             0.0000             0.0000
+        3_risk_based 770        0.2893      0.0867      0.0562    1.5083    2.6603    1.3679       -0.0634          155          28.2791     0.0141       3.0956            -0.0198            -0.8226
+4_optimisation_based 770        0.2632      0.0795      0.0480    1.6170    2.8518    1.6270       -0.0488          136          29.1083     0.0146       2.3170            -0.0269            -0.6737
+           5_dynamic 770        0.2845      0.0854      0.0571    1.4638    2.5708    1.2249       -0.0697          156          28.6478     0.0143       3.1464            -0.0209            -0.8907
+     R_task2_book_ew 770        0.2893      0.0867      0.0608    1.3980    2.5284    1.0780       -0.0804          151          38.5352     0.0193          NaN            -0.0195            -0.6539
+      R_buy_and_hold 770        0.3286      0.0975      0.1763    0.6156    0.9143    0.5167       -0.1886          429              NaN        NaN          NaN             0.0040             0.0243
+
+[Notes]
+    1_best_individual            'alpha_07', picked on dev Sharpe
+    3_risk_based                 risk parity (equal risk contribution)
+    4_optimisation_based         shrunk mean-variance, max Sharpe
+    5_dynamic                    rebalanced 11x in this window; skill-gated tilt on risk parity
+    R_task2_book_ew              reference: equal weight over the frozen Task 2 set, no alpha_07
+    R_buy_and_hold               reference, not a required baseline
+
+[Sharpe by third of the evaluation window]
+              method subperiod      start        end   n    sharpe  ann_return  max_drawdown
+   1_best_individual         1 2018-01-02 2019-01-04 257    0.4343      0.0578       -0.1355
+   1_best_individual         2 2019-01-07 2020-01-02 257   -0.1116     -0.0262       -0.1481
+   1_best_individual         3 2020-01-03 2020-12-31 256    3.0403      0.5102       -0.0636
+   1_best_individual     worst 2018-01-02 2020-12-31 770   -0.1116         NaN           NaN
+      2_equal_weight         1 2018-01-02 2019-01-04 257    0.7164      0.0521       -0.0485
+      2_equal_weight         2 2019-01-07 2020-01-02 257    0.6296      0.0434       -0.0578
+      2_equal_weight         3 2020-01-03 2020-12-31 256    2.7941      0.2365       -0.0266
+      2_equal_weight     worst 2018-01-02 2020-12-31 770    0.6296         NaN           NaN
+        3_risk_based         1 2018-01-02 2019-01-04 257    0.7757      0.0400       -0.0312
+        3_risk_based         2 2019-01-07 2020-01-02 257    0.8342      0.0447       -0.0462
+        3_risk_based         3 2020-01-03 2020-12-31 256    2.7440      0.1816       -0.0237
+        3_risk_based     worst 2018-01-02 2020-12-31 770    0.7757         NaN           NaN
+4_optimisation_based         1 2018-01-02 2019-01-04 257    0.8001      0.0341       -0.0217
+4_optimisation_based         2 2019-01-07 2020-01-02 257    1.1583      0.0537       -0.0333
+4_optimisation_based         3 2020-01-03 2020-12-31 256    2.6847      0.1547       -0.0181
+4_optimisation_based     worst 2018-01-02 2020-12-31 770    0.8001         NaN           NaN
+           5_dynamic         1 2018-01-02 2019-01-04 257    0.7757      0.0400       -0.0312
+           5_dynamic         2 2019-01-07 2020-01-02 257    0.6767      0.0368       -0.0527
+           5_dynamic         3 2020-01-03 2020-12-31 256    2.7596      0.1863       -0.0237
+           5_dynamic     worst 2018-01-02 2020-12-31 770    0.6767         NaN           NaN
+     R_task2_book_ew         1 2018-01-02 2019-01-04 257    0.8176      0.0462       -0.0340
+     R_task2_book_ew         2 2019-01-07 2020-01-02 257    1.1010      0.0647       -0.0530
+     R_task2_book_ew         3 2020-01-03 2020-12-31 256    2.1693      0.1525       -0.0311
+     R_task2_book_ew     worst 2018-01-02 2020-12-31 770    0.8176         NaN           NaN
+      R_buy_and_hold         1 2018-01-02 2019-01-04 257    0.5257      0.0834       -0.1886
+      R_buy_and_hold         2 2019-01-07 2020-01-02 257   -0.2897     -0.0621       -0.1860
+      R_buy_and_hold         3 2020-01-03 2020-12-31 256    1.6094      0.3017       -0.0751
+      R_buy_and_hold     worst 2018-01-02 2020-12-31 770   -0.2897         NaN           NaN
+
+ALLOCATION COMPARISON -- HOLDOUT
+FINAL EVALUATION -- holdout
+================================================================================================================================
+              method   n  total_return  ann_return  volatility    sharpe   sortino    calmar  max_drawdown  max_dd_days  annual_turnover  cost_drag  effective_n  excess_ann_return  information_ratio
+   1_best_individual 216        0.0919      0.1080      0.0579    1.8002    2.9535    4.3571       -0.0248           42          26.8333     0.0134          NaN             0.0557             1.3715
+      2_equal_weight 216        0.0421      0.0493      0.0305    1.5929    2.6191    2.0931       -0.0235           43          35.1627     0.0176       4.0000             0.0000             0.0000
+        3_risk_based 216        0.0247      0.0289      0.0238    1.2064    1.9769    1.5482       -0.0187           66          29.0994     0.0145       3.0956            -0.0198            -2.3064
+4_optimisation_based 216        0.0071      0.0083      0.0207    0.4092    0.6564    0.4399       -0.0189          198          29.5938     0.0148       2.3170            -0.0401            -2.6243
+           5_dynamic 216        0.0247      0.0289      0.0238    1.2064    1.9769    1.5482       -0.0187           66          29.0994     0.0145       3.0956            -0.0198            -2.3064
+     R_task2_book_ew 216        0.0237      0.0277      0.0292    0.9483    1.5212    1.1487       -0.0241           79          42.5328     0.0213          NaN            -0.0209            -1.5435
+      R_buy_and_hold 216        0.0171      0.0200      0.0850    0.2751    0.3991    0.3419       -0.0585          165              NaN        NaN          NaN            -0.0252            -0.2620
+
+[Notes]
+    1_best_individual            'alpha_07', picked on dev Sharpe
+    3_risk_based                 risk parity (equal risk contribution)
+    4_optimisation_based         shrunk mean-variance, max Sharpe
+    5_dynamic                    rebalanced 0x in this window; skill-gated tilt on risk parity
+    R_task2_book_ew              reference: equal weight over the frozen Task 2 set, no alpha_07
+    R_buy_and_hold               reference, not a required baseline
+
+[Sharpe by third of the evaluation window]
+              method subperiod      start        end   n    sharpe  ann_return  max_drawdown
+   1_best_individual         1 2021-01-01 2021-04-13  72    2.4511      0.1307       -0.0213
+   1_best_individual         2 2021-04-14 2021-07-22  72    1.8289      0.1098       -0.0248
+   1_best_individual         3 2021-07-23 2021-11-01  72    1.2713      0.0840       -0.0226
+   1_best_individual     worst 2021-01-01 2021-11-01 216    1.2713         NaN           NaN
+      2_equal_weight         1 2021-01-01 2021-04-13  72    2.2102      0.0543       -0.0073
+      2_equal_weight         2 2021-04-14 2021-07-22  72    2.3416      0.0670       -0.0098
+      2_equal_weight         3 2021-07-23 2021-11-01  72    0.7166      0.0270       -0.0235
+      2_equal_weight     worst 2021-01-01 2021-11-01 216    0.7166         NaN           NaN
+        3_risk_based         1 2021-01-01 2021-04-13  72    1.4846      0.0269       -0.0064
+        3_risk_based         2 2021-04-14 2021-07-22  72    1.8501      0.0342       -0.0062
+        3_risk_based         3 2021-07-23 2021-11-01  72    0.7906      0.0256       -0.0187
+        3_risk_based     worst 2021-01-01 2021-11-01 216    0.7906         NaN           NaN
+4_optimisation_based         1 2021-01-01 2021-04-13  72   -0.2841     -0.0047       -0.0112
+4_optimisation_based         2 2021-04-14 2021-07-22  72   -0.0317     -0.0006       -0.0066
+4_optimisation_based         3 2021-07-23 2021-11-01  72    1.0605      0.0306       -0.0130
+4_optimisation_based     worst 2021-01-01 2021-11-01 216   -0.2841         NaN           NaN
+           5_dynamic         1 2021-01-01 2021-04-13  72    1.4846      0.0269       -0.0064
+           5_dynamic         2 2021-04-14 2021-07-22  72    1.8501      0.0342       -0.0062
+           5_dynamic         3 2021-07-23 2021-11-01  72    0.7906      0.0256       -0.0187
+           5_dynamic     worst 2021-01-01 2021-11-01 216    0.7906         NaN           NaN
+     R_task2_book_ew         1 2021-01-01 2021-04-13  72    0.9894      0.0265       -0.0130
+     R_task2_book_ew         2 2021-04-14 2021-07-22  72    2.3559      0.0512       -0.0071
+     R_task2_book_ew         3 2021-07-23 2021-11-01  72    0.1718      0.0058       -0.0241
+     R_task2_book_ew     worst 2021-01-01 2021-11-01 216    0.1718         NaN           NaN
+      R_buy_and_hold         1 2021-01-01 2021-04-13  72   -1.3023     -0.1069       -0.0458
+      R_buy_and_hold         2 2021-04-14 2021-07-22  72    0.4048      0.0248       -0.0293
+      R_buy_and_hold         3 2021-07-23 2021-11-01  72    1.5063      0.1594       -0.0585
+      R_buy_and_hold     worst 2021-01-01 2021-11-01 216   -1.3023         NaN           NaN
+
+[holdout: are the differences distinguishable from noise?]
+    5_dynamic              vs 1_best_individual      excess -7.55%/yr  NW t -1.80  p 0.072
+    5_dynamic              vs 2_equal_weight         excess -1.98%/yr  NW t -2.15  p 0.031
+    5_dynamic              vs 3_risk_based           excess +0.00%/yr  NW t +0.00  p 1.000
+    5_dynamic              vs 4_optimisation_based   excess +2.03%/yr  NW t +2.52  p 0.012
+    2_equal_weight         vs 1_best_individual      excess -5.57%/yr  NW t -1.53  p 0.125
+    3_risk_based           vs 1_best_individual      excess -7.55%/yr  NW t -1.80  p 0.072
+    4_optimisation_based   vs 1_best_individual      excess -9.57%/yr  NW t -2.09  p 0.036
+    2_equal_weight         vs 3_risk_based           excess +1.98%/yr  NW t +2.15  p 0.031
+    2_equal_weight         vs 4_optimisation_based   excess +4.01%/yr  NW t +2.43  p 0.015
+    2_equal_weight         vs R_task2_book_ew        excess +2.09%/yr  NW t +1.72  p 0.085
+
+ALLOCATION COMPARISON -- FULL
+FINAL EVALUATION -- full
+================================================================================================================================
+              method   n  total_return  ann_return  volatility    sharpe   sortino    calmar  max_drawdown  max_dd_days  annual_turnover  cost_drag  effective_n  excess_ann_return  information_ratio
+   1_best_individual 986        0.7078      0.1466      0.1333    1.0929    1.7216    0.9896       -0.1481          230          25.3448     0.0127          NaN             0.0536             0.6591
+      2_equal_weight 986        0.4212      0.0940      0.0674    1.3660    2.3639    1.2128       -0.0775          156          33.1250     0.0166       4.0000             0.0000             0.0000
+        3_risk_based 986        0.3212      0.0738      0.0509    1.4242    2.5029    1.1640       -0.0634          155          28.4615     0.0142       3.0956            -0.0196            -0.9082
+4_optimisation_based 986        0.2736      0.0638      0.0435    1.4417    2.5311    1.3058       -0.0488          198          29.1581     0.0146       2.3170            -0.0293            -0.8151
+           5_dynamic 986        0.3163      0.0728      0.0517    1.3849    2.4243    1.0437       -0.0697          156          28.7494     0.0144       3.1351            -0.0205            -0.9710
+     R_task2_book_ew 986        0.3196      0.0734      0.0555    1.3058    2.3426    0.9130       -0.0804          284          39.3977     0.0197          NaN            -0.0197            -0.7271
+      R_buy_and_hold 986        0.3631      0.0824      0.1608    0.5727    0.8494    0.4368       -0.1886          429              NaN        NaN          NaN            -0.0000            -0.0002
+
+[Notes]
+    1_best_individual            'alpha_07', picked on dev Sharpe
+    3_risk_based                 risk parity (equal risk contribution)
+    4_optimisation_based         shrunk mean-variance, max Sharpe
+    5_dynamic                    rebalanced 11x in this window; skill-gated tilt on risk parity
+    R_task2_book_ew              reference: equal weight over the frozen Task 2 set, no alpha_07
+    R_buy_and_hold               reference, not a required baseline
+
+[Sharpe by third of the evaluation window]
+              method subperiod      start        end   n    sharpe  ann_return  max_drawdown
+   1_best_individual         1 2018-01-02 2019-04-16 329    0.4113      0.0529       -0.1355
+   1_best_individual         2 2019-04-17 2020-07-24 329    1.5261      0.2271       -0.1481
+   1_best_individual         3 2020-07-27 2021-11-01 328    1.6030      0.1668       -0.0481
+   1_best_individual     worst 2018-01-02 2021-11-01 986    0.4113         NaN           NaN
+      2_equal_weight         1 2018-01-02 2019-04-16 329    0.7233      0.0529       -0.0775
+      2_equal_weight         2 2019-04-17 2020-07-24 329    2.2021      0.1687       -0.0537
+      2_equal_weight         3 2020-07-27 2021-11-01 328    1.1962      0.0639       -0.0266
+      2_equal_weight     worst 2018-01-02 2021-11-01 986    0.7233         NaN           NaN
+        3_risk_based         1 2018-01-02 2019-04-16 329    0.8548      0.0473       -0.0634
+        3_risk_based         2 2019-04-17 2020-07-24 329    2.2546      0.1256       -0.0330
+        3_risk_based         3 2020-07-27 2021-11-01 328    1.1668      0.0502       -0.0237
+        3_risk_based     worst 2018-01-02 2021-11-01 986    0.8548         NaN           NaN
+4_optimisation_based         1 2018-01-02 2019-04-16 329    1.1060      0.0522       -0.0488
+4_optimisation_based         2 2019-04-17 2020-07-24 329    2.0945      0.0989       -0.0294
+4_optimisation_based         3 2020-07-27 2021-11-01 328    1.0900      0.0411       -0.0189
+4_optimisation_based     worst 2018-01-02 2021-11-01 986    1.0900         NaN           NaN
+           5_dynamic         1 2018-01-02 2019-04-16 329    0.7489      0.0418       -0.0697
+           5_dynamic         2 2019-04-17 2020-07-24 329    2.2586      0.1303       -0.0344
+           5_dynamic         3 2020-07-27 2021-11-01 328    1.1456      0.0484       -0.0237
+           5_dynamic     worst 2018-01-02 2021-11-01 986    0.7489         NaN           NaN
+     R_task2_book_ew         1 2018-01-02 2019-04-16 329    0.8177      0.0487       -0.0804
+     R_task2_book_ew         2 2019-04-17 2020-07-24 329    2.2956      0.1465       -0.0374
+     R_task2_book_ew         3 2020-07-27 2021-11-01 328    0.6653      0.0286       -0.0315
+     R_task2_book_ew     worst 2018-01-02 2021-11-01 986    0.6653         NaN           NaN
+      R_buy_and_hold         1 2018-01-02 2019-04-16 329    0.5212      0.0828       -0.1886
+      R_buy_and_hold         2 2019-04-17 2020-07-24 329    0.1603      0.0130       -0.1820
+      R_buy_and_hold         3 2020-07-27 2021-11-01 328    1.2056      0.1563       -0.0585
+      R_buy_and_hold     worst 2018-01-02 2021-11-01 986    0.1603         NaN           NaN
+
+[full: are the differences distinguishable from noise?]
+    5_dynamic              vs 1_best_individual      excess -7.41%/yr  NW t -1.50  p 0.134
+    5_dynamic              vs 2_equal_weight         excess -2.05%/yr  NW t -1.90  p 0.058
+    5_dynamic              vs 3_risk_based           excess -0.09%/yr  NW t -0.33  p 0.738
+    5_dynamic              vs 4_optimisation_based   excess +0.88%/yr  NW t +0.93  p 0.352
+    2_equal_weight         vs 1_best_individual      excess -5.36%/yr  NW t -1.30  p 0.193
+    3_risk_based           vs 1_best_individual      excess -7.32%/yr  NW t -1.48  p 0.140
+    4_optimisation_based   vs 1_best_individual      excess -8.29%/yr  NW t -1.50  p 0.134
+    2_equal_weight         vs 3_risk_based           excess +1.96%/yr  NW t +1.74  p 0.082
+    2_equal_weight         vs 4_optimisation_based   excess +2.93%/yr  NW t +1.53  p 0.125
+    2_equal_weight         vs R_task2_book_ew        excess +1.97%/yr  NW t +1.43  p 0.152
+
+[Sharpe under higher transaction costs]
+  split  cost_multiple  cost_bps_per_side  1_best_individual  2_equal_weight  3_risk_based  4_optimisation_based  5_dynamic
+holdout              1              5.000              1.800           1.593         1.206                 0.409      1.206
+holdout              2             10.000              1.564           1.013         0.594                -0.304      0.594
+holdout              4             20.000              1.094          -0.135        -0.615                -1.705     -0.615
+   full              1              5.000              1.093           1.366         1.424                 1.442      1.385
+   full              2             10.000              0.998           1.122         1.146                 1.108      1.108
+   full              4             20.000              0.807           0.631         0.587                 0.438      0.552
+
+####################################################################################################
+# RUN COMPLETE
+####################################################################################################
+  Tables written to results
+  Console log      results/run_log.txt

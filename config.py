@@ -9,6 +9,7 @@ Paths are resolved relative to this file, so the project runs from any working
 directory without editing anything (a submission requirement).
 """
 
+import os
 from pathlib import Path
 
 # ----------------------------------------------------------------------------
@@ -16,8 +17,10 @@ from pathlib import Path
 # ----------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent
 
-DATA_DIR = PROJECT_ROOT / "data"
-RESULTS_DIR = PROJECT_ROOT / "results"
+# Both can be overridden from the environment. The tests use this to run the
+# pipeline on synthetic data without touching data/ or the committed results/.
+DATA_DIR = Path(os.environ.get("QUANT_DATA_DIR", PROJECT_ROOT / "data"))
+RESULTS_DIR = Path(os.environ.get("QUANT_RESULTS_DIR", PROJECT_ROOT / "results"))
 FIGURES_DIR = RESULTS_DIR / "figures"
 REPORTS_DIR = PROJECT_ROOT / "reports"
 

@@ -533,6 +533,15 @@ def run_task3(ctx, alphas, selected, quick=False):
 
 
 # ===========================================================================
+def _short(path):
+    """Path relative to the project folder when possible, so logs don't carry
+    the full path of whoever ran them."""
+    try:
+        return path.relative_to(config.PROJECT_ROOT)
+    except ValueError:
+        return path
+
+
 def main():
     ap = argparse.ArgumentParser(description="Multi-Alpha Research Lab")
     ap.add_argument("--task", type=int, choices=[1, 2, 3], default=None,
@@ -562,8 +571,8 @@ def main():
             run_task3(ctx, alphas, selected, quick=args.quick)
 
         banner("RUN COMPLETE")
-        print(f"  Tables written to {config.RESULTS_DIR}")
-        print(f"  Console log      {config.RESULTS_DIR / 'run_log.txt'}")
+        print(f"  Tables written to {_short(config.RESULTS_DIR)}")
+        print(f"  Console log      {_short(config.RESULTS_DIR / 'run_log.txt')}")
     finally:
         sys.stdout = log.stdout
         log.close()
