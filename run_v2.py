@@ -50,6 +50,10 @@ def stage_dev(ctx):
     print("v2 DEV STAGE: walk-forward inside 2018-2020. The holdout is not read.")
     print("=" * 90)
 
+    rev = save(v2.reversal_check(ctx), "reversal_vs_continuation_dev")
+    print("\nFade vs follow yesterday's move (sign fixed, no fitting), each dev year:")
+    print(rev.to_string(index=False, float_format=fmt))
+
     folds = v2.walk_forward(ctx)
     save(folds, "walk_forward_folds")
     cfg, wide = v2.select(folds)

@@ -2,6 +2,21 @@
 v2 DEV STAGE: walk-forward inside 2018-2020. The holdout is not read.
 ==========================================================================================
 
+Fade vs follow yesterday's move (sign fixed, no fitting), each dev year:
+                                 rule  year  sharpe_net  sharpe_before_costs  ann_return_net  annual_turnover
+            fade yesterday (reversal)  2018      -1.580               -0.954          -0.267          233.075
+            fade yesterday (reversal)  2019      -2.373               -1.709          -0.341          225.730
+            fade yesterday (reversal)  2020      -1.901               -1.218          -0.292          238.326
+   fade up-days only while PB01 is on  2018      -0.085                0.403          -0.010           79.684
+   fade up-days only while PB01 is on  2019      -0.750               -0.420          -0.072           62.270
+   fade up-days only while PB01 is on  2020      -1.548               -1.031          -0.136           95.721
+fade down-days only while PB01 is off  2018      -0.987               -0.758          -0.090           41.834
+fade down-days only while PB01 is off  2019      -0.910               -0.512          -0.065           56.432
+fade down-days only while PB01 is off  2020       1.129                1.303           0.081           25.395
+      follow yesterday (continuation)  2018       0.323                0.954           0.044          233.075
+      follow yesterday (continuation)  2019       1.041                1.709           0.176          225.730
+      follow yesterday (continuation)  2020       0.530                1.218           0.080          238.326
+
 Validation Sharpe by configuration (fold = validation year):
 fold                                              2019     2020  mean_val_sharpe  beats_default_both_folds
 config                                                                                                    

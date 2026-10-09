@@ -350,6 +350,36 @@ def rebuild_frozen(ctx, frozen):
 
 
 # ---------------------------------------------------------------------------
+# the reversal idea that didn't work
+# ---------------------------------------------------------------------------
+def reversal_check(ctx):
+    """Fade vs follow yesterday's move, each dev year on its own.
+
+    The change in PB07 stands in for yesterday's return (signals only). No
+    fitting: the sign is fixed, so this is a straight look at the data.
+    """
+    move = np.sign(ctx.decision["PB07"].astype(float).diff()).fillna(0.0).to_numpy()
+    trend_on = ctx.decision["PB01"].fillna(0.0).to_numpy() > 0.5
+    rules = {
+        "fade yesterday (reversal)": -move,
+        "fade up-days only while PB01 is on": -((move > 0) & trend_on).astype(float),
+        "fade down-days only while PB01 is off": ((move < 0) & ~trend_on).astype(float),
+        "follow yesterday (continuation)": move,
+    }
+    rows = []
+    for name, pos in rules.items():
+        for year in (2018, 2019, 2020):
+            mask = date_mask(ctx, f"{year}-01-01", f"{year}-12-31")
+            net = run_position(ctx, pos, mask)["metrics"]
+            gross = run_position(ctx, pos, mask, cost=0.0)["metrics"]
+            rows.append({"rule": name, "year": year, "sharpe_net": net["sharpe"],
+                         "sharpe_before_costs": gross["sharpe"],
+                         "ann_return_net": net["annualized_return"],
+                         "annual_turnover": net["annual_turnover"]})
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # 3. bias checks (dev window only)
 # ---------------------------------------------------------------------------
 def causality_check(ctx, cfg, strategies, n_cuts=5):
