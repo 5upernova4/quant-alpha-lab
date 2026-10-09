@@ -3,6 +3,7 @@
 baseline_strategy     the naive rule required by Task 1
 alpha_01 .. alpha_06  the Task 2 candidates, one hypothesis each
 alpha_07              added at Task 3, see the note below
+alpha_08              added for v2, after the competition (v2_portfolio.py)
 
 alpha_07 is kept out of ALPHA_REGISTRY on purpose. The Task 2 candidate set and
 its selection were frozen on 18 Sep, before the holdout was opened. alpha_07 was
@@ -19,6 +20,7 @@ from strategies.alpha_04 import Alpha04BandPositionReversion
 from strategies.alpha_05 import Alpha05VolumeFlowContinuation
 from strategies.alpha_06 import Alpha06VolatilityRegimeReversion
 from strategies.alpha_07 import Alpha07DriftAnchoredDualReversion
+from strategies.alpha_08 import Alpha08NextDayContinuation
 
 
 # Task 2 candidates, exactly as submitted
@@ -36,6 +38,12 @@ TASK3_ADDITIONS = {
     "alpha_07": Alpha07DriftAnchoredDualReversion,
 }
 
+# v2 only. Kept out of both registries above so main.py still reproduces the
+# submitted Task 2 and Task 3 results exactly.
+V2_ADDITIONS = {
+    "alpha_08": Alpha08NextDayContinuation,
+}
+
 
 def build_all(**kwargs):
     """Instantiate every Task 2 candidate in registry order."""
@@ -50,6 +58,7 @@ __all__ = [
     "BaselineStrategy",
     "ALPHA_REGISTRY",
     "TASK3_ADDITIONS",
+    "V2_ADDITIONS",
     "build_all",
     "build_task3_additions",
-] + [c.__name__ for c in {**ALPHA_REGISTRY, **TASK3_ADDITIONS}.values()]
+] + [c.__name__ for c in {**ALPHA_REGISTRY, **TASK3_ADDITIONS, **V2_ADDITIONS}.values()]

@@ -1,0 +1,2 @@
+dsr,expected_max_sharpe_under_null,observed_sharpe,n_trials
+0.982643033886843,0.7280319048940025,1.8628608886506108,60

@@ -1,0 +1,90 @@
+==========================================================================================
+v2 DEV STAGE: walk-forward inside 2018-2020. The holdout is not read.
+==========================================================================================
+
+Validation Sharpe by configuration (fold = validation year):
+fold                                              2019     2020  mean_val_sharpe  beats_default_both_folds
+config                                                                                                    
+v1_set+alpha_08 / inverse_vol / regime_tilt      1.418    1.383            1.400                      True
+v1_set+alpha_08 / equal / regime_tilt            1.281    1.138            1.210                      True
+v1_set / inverse_vol / regime_tilt               0.787    1.474            1.131                      True
+v1_set+alpha_08 / sharpe_shrunk / regime_tilt    1.248    0.978            1.113                      True
+v1_set / equal / regime_tilt                     0.694    1.281            0.988                      True
+v1_set / sharpe_shrunk / regime_tilt             0.712    1.118            0.915                      True
+v1_set+alpha_08 / inverse_vol / none             0.720    1.069            0.894                      True
+v1_set+alpha_08 / inverse_vol / band_05          0.727    1.008            0.867                      True
+v1_set+alpha_08 / inverse_vol / band_10          0.686    0.998            0.842                      True
+v1_set+alpha_08 / equal / none                   0.772    0.789            0.780                     False
+v1_set+alpha_08 / sharpe_shrunk / none           0.826    0.686            0.756                     False
+v1_set+alpha_08 / equal / band_05                0.733    0.774            0.753                     False
+v1_set+alpha_08 / sharpe_shrunk / band_05        0.787    0.675            0.731                     False
+v1_set+alpha_08 / equal / band_10                0.646    0.772            0.709                     False
+v1_set+alpha_08 / sharpe_shrunk / band_10        0.678    0.648            0.663                     False
+v1_set / inverse_vol / band_05                   0.229    1.039            0.634                      True
+v1_set / inverse_vol / none                      0.187    1.065            0.626                      True
+v1_set / inverse_vol / band_10                   0.256    0.938            0.597                      True
+v1_set / equal / band_05                         0.259    0.840            0.549                      True
+v1_set / equal / band_10                         0.267    0.786            0.526                     False
+v1_set / sharpe_shrunk / band_10                 0.296    0.722            0.509                     False
+v1_set / sharpe_shrunk / band_05                 0.275    0.723            0.499                     False
+v1_set / equal / none                            0.174    0.794            0.484                     False
+v1_set+alpha_08 / inverse_vol / vol_target       0.145    0.717            0.431                     False
+v1_set / sharpe_shrunk / none                    0.162    0.685            0.424                     False
+v1_set / inverse_vol / vol_target                0.084    0.745            0.415                     False
+v1_set / equal / vol_target                      0.070    0.464            0.267                     False
+v1_set+alpha_08 / equal / vol_target             0.055    0.354            0.205                     False
+v1_set+alpha_08 / sharpe_shrunk / vol_target     0.055    0.240            0.148                     False
+v1_set / sharpe_shrunk / vol_target             -0.010    0.288            0.139                     False
+
+v1 as submitted, unscaled: 2019: 0.202, 2020: 0.771
+
+Selected: v1_set+alpha_08 / inverse_vol / regime_tilt
+Frozen to results/v2/frozen_config.json
+{
+  "config": {
+    "set": "v1_set+alpha_08",
+    "weighting": "inverse_vol",
+    "overlay": "regime_tilt"
+  },
+  "weights": {
+    "alpha_02": 0.41397048676750053,
+    "alpha_03": 0.14731983644591987,
+    "alpha_05": 0.16176393045415816,
+    "alpha_07": 0.13760844798299082,
+    "alpha_08": 0.13933729834943048
+  },
+  "scale": 1.3237025911151596,
+  "dev_sharpe": 1.8628608886506108
+}
+
+------------------------------------------------------------------------------------------
+BIAS CHECKS (dev window)
+------------------------------------------------------------------------------------------
+  dev Sharpe of the frozen book 1.86 is in-sample. Best of 60 by luck would be ~0.73; probability it beats that: 0.98
+  truncation test: PASS (5 cut dates, max change 0.0e+00)
+                                    test  signal_shift_days  dev_sharpe  dev_ann_return
+                                as built                  0       1.863           0.186
+                  one extra day of delay                  1       1.042           0.095
+one day of look-ahead (should be caught)                 -1       4.385           0.453
+
+------------------------------------------------------------------------------------------
+alpha_08 on its own (same dev battery as the Task 2 strategies)
+------------------------------------------------------------------------------------------
+dev_sharpe                0.794
+dev_ann_return            0.111
+dev_max_drawdown         -0.125
+annual_turnover         125.018
+cost_drag                 0.063
+nw_t                      1.407
+nw_p                      0.159
+boot_sharpe_ci_low       -0.238
+boot_sharpe_ci_high       1.884
+permutation_p             0.006
+deflated_sharpe_prob      0.182
+variants_tried           18.000
+breakeven_cost_bps       12.500
+sharpe_at_2x_cost         0.365
+subperiods_positive       1.000
+noise_retention_5pct      0.738
+param_pct_positive        1.000
+  fitted: {'PB07_change': {'sign': 1.0, 't_stat': 2.149, 'spearman': 0.0775}, 'vol_gate': {'chosen': True, 'dev_sharpe_net_of_cost': {'False': 0.597, 'True': 0.796}}, 'fit_horizon_days': 1}

@@ -1,0 +1,153 @@
+{
+  "config": {
+    "set": "v1_set+alpha_08",
+    "weighting": "inverse_vol",
+    "overlay": "regime_tilt"
+  },
+  "strategies": [
+    "alpha_02",
+    "alpha_03",
+    "alpha_05",
+    "alpha_07",
+    "alpha_08"
+  ],
+  "weights": {
+    "alpha_02": 0.41397048676750053,
+    "alpha_03": 0.14731983644591987,
+    "alpha_05": 0.16176393045415816,
+    "alpha_07": 0.13760844798299082,
+    "alpha_08": 0.13933729834943048
+  },
+  "scale": 1.3237025911151596,
+  "target_vol": 0.1,
+  "dev_sharpe": 1.8628608886506108,
+  "fitted": {
+    "alpha_02": {
+      "BB03": {
+        "sign": -1.0,
+        "t_stat": -2.024,
+        "spread_bps": -106.66
+      },
+      "BB04": {
+        "sign": 0.0,
+        "t_stat": 0.448,
+        "spread_bps": 33.14
+      },
+      "hold_days": {
+        "chosen": 5,
+        "dev_sharpe_net_of_cost": 0.787,
+        "grid": [
+          3,
+          5,
+          10
+        ],
+        "scored_on": "1-day net"
+      },
+      "fit_horizon_days": 5
+    },
+    "alpha_03": {
+      "PB01": {
+        "sign": -1.0,
+        "t_stat": -0.926,
+        "spread_bps": -81.05
+      },
+      "PB02": {
+        "sign": 0.0,
+        "t_stat": -0.215,
+        "spread_bps": -19.01
+      },
+      "PB03": {
+        "sign": -1.0,
+        "t_stat": -0.636,
+        "spread_bps": -52.42
+      },
+      "PB04": {
+        "sign": -1.0,
+        "t_stat": -0.556,
+        "spread_bps": -45.4
+      },
+      "PB05": {
+        "sign": 0.0,
+        "t_stat": -0.477,
+        "spread_bps": -39.28
+      },
+      "flags_kept": [
+        "PB01",
+        "PB03",
+        "PB04"
+      ],
+      "fit_horizon_days": 10
+    },
+    "alpha_05": {
+      "VB01": {
+        "sign": -1.0,
+        "t_stat": -0.56,
+        "spread_bps": -4.38
+      },
+      "VB02": {
+        "sign": 1.0,
+        "t_stat": 2.427,
+        "spread_bps": 19.33
+      },
+      "VB03": {
+        "sign": 0.0,
+        "t_stat": 0.0,
+        "spread_bps": 0.0
+      },
+      "VB04": {
+        "sign": 0.0,
+        "t_stat": 0.402,
+        "spread_bps": 3.25
+      },
+      "VB05": {
+        "sign": -1.0,
+        "t_stat": -0.654,
+        "spearman": -0.0244
+      },
+      "fit_horizon_days": 1
+    },
+    "alpha_07": {
+      "BB03": {
+        "sign": -1.0,
+        "t_stat": -2.024,
+        "spread_bps": -106.66
+      },
+      "BB04": {
+        "sign": 0.0,
+        "t_stat": 0.448,
+        "spread_bps": 33.14
+      },
+      "trend_consensus": {
+        "sign": -1.0,
+        "t_stat": -0.688,
+        "spearman": -0.0556
+      },
+      "selection": {
+        "anchor": 1.0,
+        "osc_hold": 5,
+        "trend_hold": 8,
+        "gain": 1.25,
+        "dev_sharpe_net_of_cost": 1.07,
+        "combinations_searched": 180
+      },
+      "fit_horizon_days": 5
+    },
+    "alpha_08": {
+      "PB07_change": {
+        "sign": 1.0,
+        "t_stat": 2.149,
+        "spearman": 0.0775
+      },
+      "vol_gate": {
+        "chosen": true,
+        "dev_sharpe_net_of_cost": {
+          "False": 0.597,
+          "True": 0.796
+        }
+      },
+      "fit_horizon_days": 1
+    }
+  },
+  "walk_forward_mean_val_sharpe": 1.4004388955333207,
+  "configs_compared": 30
+}

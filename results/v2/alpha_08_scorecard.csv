@@ -1,0 +1,2 @@
+dev_sharpe,dev_ann_return,dev_max_drawdown,annual_turnover,cost_drag,nw_t,nw_p,boot_sharpe_ci_low,boot_sharpe_ci_high,permutation_p,deflated_sharpe_prob,variants_tried,breakeven_cost_bps,sharpe_at_2x_cost,subperiods_positive,noise_retention_5pct,param_pct_positive
+0.7939573986357367,0.11091262720085937,-0.12524874562271326,125.01818181818182,0.0625090909090909,1.4068178347236153,0.1594814126830424,-0.23830095823360842,1.8840837580663632,0.006,0.18236943894546165,18,12.5,0.3646886069832757,1.0,0.7376083444393555,1.0
