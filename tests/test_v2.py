@@ -73,9 +73,9 @@ def test_no_trade_band_only_trades_past_the_band():
     assert out[4] == pytest.approx(-0.45)
 
 
-def test_run_v2_both_stages():
+def test_run_v2_all_stages():
     env = os.environ.copy()
-    for stage in ("dev", "holdout"):
+    for stage in ("dev", "holdout", "posthoc"):
         out = subprocess.run([sys.executable, "run_v2.py", "--stage", stage], cwd=ROOT,
                              capture_output=True, text=True, env=env, timeout=900)
         assert out.returncode == 0, out.stderr[-3000:]

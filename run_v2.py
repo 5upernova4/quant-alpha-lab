@@ -4,6 +4,8 @@ run_v2.py - the post-competition v2 research, in two separate stages.
     python run_v2.py --stage dev       # walk-forward on dev, pick and freeze v2,
                                        # run the bias checks. Never reads 2021.
     python run_v2.py --stage holdout   # score the frozen v2 on 2021, once
+    python run_v2.py --stage posthoc   # after the holdout: why did v2 do what
+                                       # it did? Explains, never re-selects.
 
 main.py is untouched by this and still reproduces the submitted results.
 Outputs go to results/v2/ and results/figures/fig_v2_*.png.
@@ -139,13 +141,64 @@ def stage_holdout(ctx):
 
     # figures
     returns = {k: v2.run_position(ctx, p, splits["full"])["returns"] for k, p in books.items()}
-    plots.equity_curves(returns, "v1 vs v2, net of costs (dev 2018-2020, holdout 2021)",
+    plots.equity_curves(returns, "v1 vs v2, net of costs (left of the red line is in-sample for both)",
                         "fig_v2_equity_full", benchmark=ctx.benchmark_returns("full"),
                         split_date=config.HOLDOUT_START_DATE)
     plots.drawdowns(returns, "v1 vs v2, drawdowns", "fig_v2_drawdowns")
     hold = {k: v2.run_position(ctx, p, splits["holdout"])["returns"] for k, p in books.items()}
     plots.equity_curves(hold, "v1 vs v2 on the 2021 holdout", "fig_v2_equity_holdout",
                         benchmark=ctx.benchmark_returns("holdout"))
+
+
+def stage_posthoc(ctx):
+    """Written after the holdout result was known, to explain it.
+
+    Nothing here changes v2. Picking the best row of this table would be
+    choosing on the holdout, which is exactly what the protocol forbids.
+    """
+    print("=" * 90)
+    print("v2 POST-HOC: every configuration on 2021, for explanation only")
+    print("=" * 90)
+    keys = sorted(set(sum(v2.STRATEGY_SETS.values(), [])))
+    strategies = v2.new_strategies(keys)
+    ctx.fit_strategies(strategies, split="dev")
+    P = v2.position_frame(ctx, strategies)
+    dev = v2.date_mask(ctx, end=config.DEV_END_DATE)
+    hold = v2.date_mask(ctx, start=config.HOLDOUT_START_DATE)
+
+    rows = []
+    for cfg in v2.all_configs():
+        pos, _ = v2.build_book(ctx, cfg, P, dev)
+        d = v2.run_position(ctx, pos, dev)["metrics"]
+        h = v2.run_position(ctx, pos, hold)["metrics"]
+        rows.append({"config": v2.config_name(cfg), "dev_sharpe_in_sample": d["sharpe"],
+                     "holdout_sharpe": h["sharpe"], "holdout_ann_return": h["annualized_return"],
+                     "holdout_volatility": h["volatility"]})
+    by_cfg = save(pd.DataFrame(rows), "posthoc_holdout_by_config")
+    print(by_cfg.to_string(index=False, float_format=fmt))
+
+    single = []
+    for k in keys:
+        for split, mask in (("dev", dev), ("holdout", hold)):
+            m = v2.run_position(ctx, P[k].to_numpy(), mask)["metrics"]
+            single.append({"strategy": k, "split": split, "sharpe": m["sharpe"],
+                           "ann_return": m["annualized_return"]})
+    single = save(pd.DataFrame(single), "posthoc_single_strategies")
+    print("\n" + single.to_string(index=False, float_format=fmt))
+
+    # where did the v1 book make its money: high or low BB07 regime?
+    high = v2.regime_multiplier(ctx.decision) > 1
+    pnl = v2.run_position(ctx, v2.unscaled_v1(P), v2.date_mask(ctx))["returns"].to_numpy()
+    reg = []
+    for split, mask in (("dev", dev), ("holdout", hold)):
+        for name, cond in (("high vol (tilt 1.5x)", high), ("low vol (tilt 0.5x)", ~high)):
+            x = pnl[mask & cond]
+            reg.append({"split": split, "regime": name, "days": len(x),
+                        "share_of_days": len(x) / mask.sum(),
+                        "v1_ann_mean_return": x.mean() * config.TRADING_DAYS_PER_YEAR,
+                        "v1_sharpe": x.mean() / x.std(ddof=1) * np.sqrt(config.TRADING_DAYS_PER_YEAR)})
+    reg = save(pd.DataFrame(reg), "posthoc_regime_split")
+    print("\n" + reg.to_string(index=False, float_format=fmt))
 
 
 def plots_walk_forward(wide):
@@ -169,7 +222,7 @@ def plots_walk_forward(wide):
 
 def main():
     ap = argparse.ArgumentParser(description="v2 research, dev and holdout stages")
-    ap.add_argument("--stage", choices=["dev", "holdout"], required=True)
+    ap.add_argument("--stage", choices=["dev", "holdout", "posthoc"], required=True)
     args = ap.parse_args()
     np.random.seed(config.RANDOM_SEED)
     v2.V2_DIR.mkdir(parents=True, exist_ok=True)
@@ -177,10 +230,7 @@ def main():
     sys.stdout = log
     try:
         ctx = ResearchContext(verbose=False)
-        if args.stage == "dev":
-            stage_dev(ctx)
-        else:
-            stage_holdout(ctx)
+        {"dev": stage_dev, "holdout": stage_holdout, "posthoc": stage_posthoc}[args.stage](ctx)
     finally:
         sys.stdout = log.stdout
         log.close()

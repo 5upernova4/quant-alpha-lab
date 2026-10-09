@@ -1,0 +1,52 @@
+==========================================================================================
+v2 POST-HOC: every configuration on 2021, for explanation only
+==========================================================================================
+                                       config  dev_sharpe_in_sample  holdout_sharpe  holdout_ann_return  holdout_volatility
+                        v1_set / equal / none                 1.408           1.584               0.066               0.041
+                 v1_set / equal / regime_tilt                 1.741           1.287               0.044               0.034
+                  v1_set / equal / vol_target                 1.024           1.421               0.085               0.059
+                     v1_set / equal / band_05                 1.402           1.543               0.065               0.041
+                     v1_set / equal / band_10                 1.355           1.450               0.061               0.041
+                  v1_set / inverse_vol / none                 1.466           1.385               0.058               0.041
+           v1_set / inverse_vol / regime_tilt                 1.808           1.156               0.042               0.036
+            v1_set / inverse_vol / vol_target                 1.179           1.055               0.057               0.054
+               v1_set / inverse_vol / band_05                 1.473           1.338               0.056               0.041
+               v1_set / inverse_vol / band_10                 1.407           1.265               0.053               0.041
+                v1_set / sharpe_shrunk / none                 1.464           1.420               0.058               0.040
+         v1_set / sharpe_shrunk / regime_tilt                 1.788           1.254               0.042               0.033
+          v1_set / sharpe_shrunk / vol_target                 1.101           1.317               0.078               0.058
+             v1_set / sharpe_shrunk / band_05                 1.470           1.447               0.060               0.041
+             v1_set / sharpe_shrunk / band_10                 1.427           1.391               0.057               0.041
+               v1_set+alpha_08 / equal / none                 1.526           1.745               0.067               0.038
+        v1_set+alpha_08 / equal / regime_tilt                 1.790           1.490               0.050               0.033
+         v1_set+alpha_08 / equal / vol_target                 1.050           1.439               0.080               0.055
+            v1_set+alpha_08 / equal / band_05                 1.468           1.726               0.067               0.038
+            v1_set+alpha_08 / equal / band_10                 1.446           1.585               0.061               0.038
+         v1_set+alpha_08 / inverse_vol / none                 1.599           1.561               0.061               0.039
+  v1_set+alpha_08 / inverse_vol / regime_tilt                 1.863           1.366               0.046               0.034
+   v1_set+alpha_08 / inverse_vol / vol_target                 1.225           1.089               0.058               0.053
+      v1_set+alpha_08 / inverse_vol / band_05                 1.551           1.565               0.062               0.039
+      v1_set+alpha_08 / inverse_vol / band_10                 1.487           1.463               0.057               0.038
+       v1_set+alpha_08 / sharpe_shrunk / none                 1.565           1.603               0.061               0.037
+v1_set+alpha_08 / sharpe_shrunk / regime_tilt                 1.838           1.480               0.048               0.032
+ v1_set+alpha_08 / sharpe_shrunk / vol_target                 1.123           1.325               0.073               0.055
+    v1_set+alpha_08 / sharpe_shrunk / band_05                 1.530           1.637               0.063               0.038
+    v1_set+alpha_08 / sharpe_shrunk / band_10                 1.500           1.554               0.059               0.037
+
+strategy   split   sharpe  ann_return
+alpha_02     dev    0.787       0.038
+alpha_02 holdout    0.644       0.011
+alpha_03     dev    0.530       0.066
+alpha_03 holdout    1.997       0.141
+alpha_05     dev    1.024       0.128
+alpha_05 holdout   -1.449      -0.083
+alpha_07     dev    1.069       0.158
+alpha_07 holdout    1.800       0.108
+alpha_08     dev    0.794       0.111
+alpha_08 holdout    0.647       0.033
+
+  split               regime  days  share_of_days  v1_ann_mean_return  v1_sharpe
+    dev high vol (tilt 1.5x)   394          0.512               0.240      2.675
+    dev  low vol (tilt 0.5x)   376          0.488              -0.038     -0.706
+holdout high vol (tilt 1.5x)    52          0.241               0.093      2.152
+holdout  low vol (tilt 0.5x)   164          0.759               0.034      1.367

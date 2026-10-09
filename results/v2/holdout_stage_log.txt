@@ -1,0 +1,36 @@
+==========================================================================================
+v2 HOLDOUT STAGE: the frozen configuration, scored on 2021
+==========================================================================================
+  frozen config: v1_set+alpha_08 / inverse_vol / regime_tilt  (weights and scale re-derived and matched)
+
+                book   split  ann_return  volatility   sharpe  max_drawdown  annual_turnover  hit_rate_active
+     v1 as submitted     dev       0.107       0.075    1.401        -0.077           32.607            0.467
+v1 scaled to 10% vol     dev       0.144       0.099    1.408        -0.099           42.472            0.467
+                  v2     dev       0.186       0.094    1.863        -0.070           49.703            0.466
+        buy and hold     dev       0.097       0.176    0.616        -0.189            0.000            0.512
+     v1 as submitted holdout       0.049       0.030    1.593        -0.024           35.163            0.498
+v1 scaled to 10% vol holdout       0.066       0.041    1.584        -0.031           46.925            0.498
+                  v2 holdout       0.046       0.034    1.366        -0.026           30.022            0.484
+        buy and hold holdout       0.020       0.085    0.275        -0.058            0.000            0.491
+     v1 as submitted    full       0.094       0.067    1.366        -0.077           33.125            0.473
+v1 scaled to 10% vol    full       0.126       0.090    1.371        -0.099           43.391            0.473
+                  v2    full       0.153       0.085    1.726        -0.070           45.551            0.469
+        buy and hold    full       0.082       0.161    0.573        -0.189            0.000            0.508
+
+Significance (Newey-West t, stationary-bootstrap Sharpe CI, block permutation):
+                book     nw_t     nw_p  boot_sharpe  boot_ci_low  boot_ci_high  permutation_p  excess_vs_control_ann  excess_nw_t  excess_nw_p   split
+     v1 as submitted    2.355    0.019        1.401        0.161         2.582          0.002                 -0.035       -2.409        0.016     dev
+v1 scaled to 10% vol    2.374    0.018        1.408        0.186         2.574          0.002                    NaN          NaN          NaN     dev
+                  v2    3.197    0.001        1.863        0.762         2.958          0.001                  0.036        1.227        0.220     dev
+     v1 as submitted    1.482    0.138        1.593       -0.364         3.609          0.010                 -0.016       -1.421        0.155 holdout
+v1 scaled to 10% vol    1.467    0.142        1.584       -0.381         3.609          0.010                    NaN          NaN          NaN holdout
+                  v2    1.165    0.244        1.366       -0.604         2.820          0.017                 -0.019       -0.756        0.450 holdout
+
+Sharpe at 1x / 2x / 4x the mandated cost:
+  split  cost_multiple  v1 as submitted  v1 scaled to 10% vol       v2
+    dev              1            1.401                 1.408    1.863
+    dev              2            1.184                 1.195    1.601
+    dev              4            0.748                 0.767    1.075
+holdout              1            1.593                 1.584    1.366
+holdout              2            1.013                 1.004    0.916
+holdout              4           -0.135                -0.143    0.025
